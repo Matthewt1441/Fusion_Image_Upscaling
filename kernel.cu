@@ -10,11 +10,150 @@
 #include <fstream>
 #include <string>
 
+const int CHN_NUM = 3;
+
+void Average(float* Avg, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
+{
+    float average_1[CHN_NUM] = { 0 };
+    float average_2[CHN_NUM] = { 0 };
+
+    float total_pix = *height * *width;
+
+    for (int y = 0; y < *height; y++)
+    {
+        for (int x = 0; x < *width; x++)
+        {
+            for (int img = 0; img < 2; img++)
+            {
+                for (int chn = 0; chn < CHN_NUM; chn++)
+                {
+                    average_1[chn] += img_1[CHN_NUM * (y * *width + x) + chn];
+                    average_2[chn] += img_2[CHN_NUM * (y * *width + x) + chn];
+                }
+            }
+        }
+    }
+
+    for (int chn = 0; chn < CHN_NUM; chn++)
+    {
+        Avg[0       + chn]    = average_1[chn] / total_pix;
+        Avg[CHN_NUM + chn]    = average_2[chn] / total_pix;
+    }
+}
+
+void StandardDeviationSquare(float* STD, float* Avg, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
+{
+    float STD_1[CHN_NUM] = { 0 };
+    float STD_2[CHN_NUM] = { 0 };
+    float STD_1_2[CHN_NUM] = { 0 };
+
+    float total_pix = *height * *width;
+
+    for (int y = 0; y < *height; y++)
+    {
+        for (int x = 0; x < *width; x++)
+        {
+            for (int img = 0; img < 2; img++)
+            {
+                for (int chn = 0; chn < CHN_NUM; chn++)
+                {
+                    STD_1[chn] += img_1[CHN_NUM * (y * *width + x) + chn] - Avg[0 + chn];
+                    STD_2[chn] += img_2[CHN_NUM * (y * *width + x) + chn] - Avg[CHN_NUM + chn];
+                    STD_1_2[chn] += STD_1[chn] + STD_2[chn];
+                }
+            }
+        }
+    }
+    
+    for (int chn = 0; chn < CHN_NUM; chn++)
+    {
+        STD[CHN_NUM * 0 + chn] = STD_1[chn]     / total_pix;    //Sigma 1
+        STD[CHN_NUM * 1 + chn] = STD_2[chn]     / total_pix;    //Sigma 2
+        STD[CHN_NUM * 2 + chn] = STD_1_2[chn]   / total_pix;    //Sigma 1,2
+    }
+
+    
+}
+
+void SSIM(float* ssim, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
+{
+    float* img_averages = (float*)malloc(sizeof(float) * CHN_NUM * 2);
+    float* img_std = (float*)malloc(sizeof(float) * CHN_NUM * 3);
+    
+    float L_2 = 255 * 255;  //Max RGB Value ^ 2
+    
+    //Constants
+    float K1_2 = 0.01;              float K2_2 = 0.03;
+    float C1 = K1_2 * L_2;          float C2 = K2_2 * L_2;
+
+    Average(img_averages, img_1, img_2, width, height);
+    StandardDeviationSquare(img_std, img_averages, img_1, img_2, width, height);
+
+    for (int chn = 0; chn < CHN_NUM; chn++)
+        ssim[chn] = ((2 * img_averages[chn] * img_averages[CHN_NUM + chn] + C1) * (2 * img_std[CHN_NUM * 3 + chn] + C2)) /
+                    ((img_averages[chn] * img_averages[chn] + img_averages[CHN_NUM + chn] * img_averages[CHN_NUM + chn] + C1) * (img_std[CHN_NUM * 0 + chn] + img_std[CHN_NUM * 1 + chn] + C2));
+
+}
+
+void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
+{
+    for (int y = 0; y < *height; y++)
+    {
+        for (int x = 0; x < *width; x++)
+        {
+            img_diff[3 * (y * *width + x) + 0] = abs(img_1[3 * (y * *width + x) + 0] - img_2[3 * (y * *width + x) + 0]);
+            img_diff[3 * (y * *width + x) + 1] = abs(img_1[3 * (y * *width + x) + 1] - img_2[3 * (y * *width + x) + 1]);
+            img_diff[3 * (y * *width + x) + 2] = abs(img_1[3 * (y * *width + x) + 2] - img_2[3 * (y * *width + x) + 2]);
+        }
+    }
+}
+
+void Artifact_Detection(unsigned char* img_1, unsigned char* img_2, int* width, int* height, int window_size)
+{
+    int num_windows_x = ceil(*width / (float) window_size);
+    int num_windows_y = ceil(*height / (float) window_size);
+
+    unsigned char* img1_window = (unsigned char*)malloc(sizeof(unsigned char) * window_size * window_size * 3);
+    unsigned char* img2_window = (unsigned char*)malloc(sizeof(unsigned char) * window_size * window_size * 3);
+
+    int img_x = 0; 
+    int img_y = 0;
+
+    for (int win_y = 0; win_y < num_windows_y; win_y++)
+    {
+        for (int win_x = 0; win_x < num_windows_x; win_x++)
+        {
+            //DATA LOADING PHASE
+            for (int y = 0; y < window_size; y++)
+            {
+                for (int x = 0; x < window_size; x++)
+                {
+                    img_x = x + win_x * window_size;
+                    img_y = y + win_y * window_size;
+
+                    if ((img_y < *height) && (img_x < *width))
+                    {
+                        img1_window[(y * window_size + x) * CHN_NUM] = img_1[(img_y * *width + img_x) * CHN_NUM];
+                        img2_window[(y * window_size + x) * CHN_NUM] = img_2[(img_y * *width + img_x) * CHN_NUM];
+                    }
+                }
+            }
+
+            //Image Difference Phase
+
+        }
+
+    }
+
+    
+}
+
 void nearestNeighbors(unsigned char* big_img_data, int* big_width, int* big_height, unsigned char* img_data, int* width, int* height, int scale)
 {
     int small_x, small_y;
 
     for (int y = 0; y < *big_height; y++)
+    {
         for (int x = 0; x < *big_width; x++)
         {
             small_x = x / scale;
@@ -24,44 +163,8 @@ void nearestNeighbors(unsigned char* big_img_data, int* big_width, int* big_heig
             big_img_data[3 * (y * *big_width + x) + 1] = img_data[3 * (small_y * *width + small_x) + 1];
             big_img_data[3 * (y * *big_width + x) + 2] = img_data[3 * (small_y * *width + small_x) + 2];
         }
+    }
 }
-
-//float bicubicpol(float x, float y, float p[4][4]) {
-//
-//    float a00, a01, a02, a03;
-//    float a10, a11, a12, a13;
-//    float a20, a21, a22, a23;
-//    float a30, a31, a32, a33;
-//    float x2 = x * x;
-//    float x3 = x2 * x;
-//    float y2 = y * y;
-//    float y3 = y2 * y;
-//
-//    a00 = p[1][1];
-//    a01 = -.5 * p[1][0] + .5 * p[1][2];
-//    a02 = p[1][0] - 2.5 * p[1][1] + 2 * p[1][2] - .5 * p[1][3];
-//    a03 = -.5 * p[1][0] + 1.5 * p[1][1] - 1.5 * p[1][2] + .5 * p[1][3];
-//    a10 = -.5 * p[0][1] + .5 * p[2][1];
-//    a11 = .25 * p[0][0] - .25 * p[0][2] - .25 * p[2][0] + .25 * p[2][2];
-//    a12 = -.5 * p[0][0] + 1.25 * p[0][1] - p[0][2] + .25 * p[0][3] + .5 * p[2][0] - 1.25 * p[2][1] + p[2][2] - .25 * p[2][3];
-//    a13 = .25 * p[0][0] - .75 * p[0][1] + .75 * p[0][2] - .25 * p[0][3] - .25 * p[2][0] + .75 * p[2][1] - .75 * p[2][2] + .25 * p[2][3];
-//    a20 = p[0][1] - 2.5 * p[1][1] + 2 * p[2][1] - .5 * p[3][1];
-//    a21 = -.5 * p[0][0] + .5 * p[0][2] + 1.25 * p[1][0] - 1.25 * p[1][2] - p[2][0] + p[2][2] + .25 * p[3][0] - .25 * p[3][2];
-//    a22 = p[0][0] - 2.5 * p[0][1] + 2 * p[0][2] - .5 * p[0][3] - 2.5 * p[1][0] + 6.25 * p[1][1] - 5 * p[1][2] + 1.25 * p[1][3] + 2 * p[2][0] - 5 * p[2][1] + 4 * p[2][2] - p[2][3] - .5 * p[3][0] + 1.25 * p[3][1] - p[3][2] + .25 * p[3][3];
-//    a23 = -.5 * p[0][0] + 1.5 * p[0][1] - 1.5 * p[0][2] + .5 * p[0][3] + 1.25 * p[1][0] - 3.75 * p[1][1] + 3.75 * p[1][2] - 1.25 * p[1][3] - p[2][0] + 3 * p[2][1] - 3 * p[2][2] + p[2][3] + .25 * p[3][0] - .75 * p[3][1] + .75 * p[3][2] - .25 * p[3][3];
-//    a30 = -.5 * p[0][1] + 1.5 * p[1][1] - 1.5 * p[2][1] + .5 * p[3][1];
-//    a31 = .25 * p[0][0] - .25 * p[0][2] - .75 * p[1][0] + .75 * p[1][2] + .75 * p[2][0] - .75 * p[2][2] - .25 * p[3][0] + .25 * p[3][2];
-//    a32 = -.5 * p[0][0] + 1.25 * p[0][1] - p[0][2] + .25 * p[0][3] + 1.5 * p[1][0] - 3.75 * p[1][1] + 3 * p[1][2] - .75 * p[1][3] - 1.5 * p[2][0] + 3.75 * p[2][1] - 3 * p[2][2] + .75 * p[2][3] + .5 * p[3][0] - 1.25 * p[3][1] + p[3][2] - .25 * p[3][3];
-//    a33 = .25 * p[0][0] - .75 * p[0][1] + .75 * p[0][2] - .25 * p[0][3] - .75 * p[1][0] + 2.25 * p[1][1] - 2.25 * p[1][2] + .75 * p[1][3] + .75 * p[2][0] - 2.25 * p[2][1] + 2.25 * p[2][2] - .75 * p[2][3] - .25 * p[3][0] + .75 * p[3][1] - .75 * p[3][2] + .25 * p[3][3];
-//
-//
-//    return (a00 + a01 * y + a02 * y2 + a03 * y3) +
-//        (a10 + a11 * y + a12 * y2 + a13 * y3) * x +
-//        (a20 + a21 * y + a22 * y2 + a23 * y3) * x2 +
-//        (a30 + a31 * y + a32 * y2 + a33 * y3) * x3;
-//
-//}
-
 
 float cubicInterpolate(float p[4], float x) {
     float output = p[1] + 0.5 * x * (p[2] - p[0] + x * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3] + x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
@@ -122,9 +225,6 @@ void bicubicInterpolation(unsigned char* big_img_data, int* big_width, int* big_
                             window_r[l][k] = (float)img_data[3 * ((l + y / scale) * *width + x / scale + k) + 0];
                             window_g[l][k] = (float)img_data[3 * ((l + y / scale) * *width + x / scale + k) + 1];
                             window_b[l][k] = (float)img_data[3 * ((l + y / scale) * *width + x / scale + k) + 2];
-                            //window_r[l][k] = img_data[3 * ((y / f) * *width + x / f) + 0];
-                            //window_g[l][k] = img_data[3 * ((y / f) * *width + x / f) + 1];
-                            //window_b[l][k] = img_data[3 * ((y / f) * *width + x / f) + 2];
                         }
                     }
                 }
@@ -133,7 +233,7 @@ void bicubicInterpolation(unsigned char* big_img_data, int* big_width, int* big_
                 float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);
                 float temp3 = bicubicInterpolate(window_b, (float)(y % f) / f, (float)(x % f) / f);
 
-                big_img_data[3 * (y * *big_width + x) + 0] = (unsigned char)temp1;
+                big_img_data[3 * (y * *big_width + x) + 0]  = (unsigned char)temp1;
                 big_img_data[3 * (y * *big_width + x) + 1] = (unsigned char)temp2;
                 big_img_data[3 * (y * *big_width + x) + 2] = (unsigned char)temp3;
             }
@@ -230,6 +330,7 @@ int main()
         *big_width = *width * scale; *big_height = *height * scale;
         unsigned char* big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
         unsigned char* big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+        unsigned char* big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
         printf("Image dimensions: %d x %d\n", *width, *height);
         printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
@@ -237,14 +338,15 @@ int main()
         nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
         //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
         bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
+        ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
 
         writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
         writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
+        writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
 
-        free(img);      free(big_img_nn);   free(big_img_bic);
+        free(img);      free(big_img_nn);   free(big_img_bic); free(big_img_dif);
         free(width);    free(big_width);
         free(height);   free(big_height);
-
     }
 
     catch (const std::exception& e)
