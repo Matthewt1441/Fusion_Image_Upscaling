@@ -10,140 +10,91 @@
 #include <fstream>
 #include <string>
 
-const int CHN_NUM = 3;
+#include "helper.cuh"
 
-void Average(float* Avg, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
+
+
+void Artifact_Detection(unsigned char* mask_img, unsigned char* img_1, unsigned char* img_2, int* width, int* height, int* window_size, float TH)
 {
-    float average_1[CHN_NUM] = { 0 };
-    float average_2[CHN_NUM] = { 0 };
+    int num_windows_x = ceil(*width / (float) *window_size);
+    int num_windows_y = ceil(*height / (float) *window_size);
 
-    float total_pix = *height * *width;
+    int total_win_pix = *window_size * *window_size;
 
-    for (int y = 0; y < *height; y++)
-    {
-        for (int x = 0; x < *width; x++)
-        {
-            for (int img = 0; img < 2; img++)
-            {
-                for (int chn = 0; chn < CHN_NUM; chn++)
-                {
-                    average_1[chn] += img_1[CHN_NUM * (y * *width + x) + chn];
-                    average_2[chn] += img_2[CHN_NUM * (y * *width + x) + chn];
-                }
-            }
-        }
-    }
+    float* img1_window = (float*)malloc(sizeof(float) * total_win_pix * 3);
+    float* img2_window = (float*)malloc(sizeof(float) * total_win_pix * 3);
 
-    for (int chn = 0; chn < CHN_NUM; chn++)
-    {
-        Avg[0       + chn]    = average_1[chn] / total_pix;
-        Avg[CHN_NUM + chn]    = average_2[chn] / total_pix;
-    }
-}
-
-void StandardDeviationSquare(float* STD, float* Avg, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
-{
-    float STD_1[CHN_NUM] = { 0 };
-    float STD_2[CHN_NUM] = { 0 };
-    float STD_1_2[CHN_NUM] = { 0 };
-
-    float total_pix = *height * *width;
-
-    for (int y = 0; y < *height; y++)
-    {
-        for (int x = 0; x < *width; x++)
-        {
-            for (int img = 0; img < 2; img++)
-            {
-                for (int chn = 0; chn < CHN_NUM; chn++)
-                {
-                    STD_1[chn] += img_1[CHN_NUM * (y * *width + x) + chn] - Avg[0 + chn];
-                    STD_2[chn] += img_2[CHN_NUM * (y * *width + x) + chn] - Avg[CHN_NUM + chn];
-                    STD_1_2[chn] += STD_1[chn] + STD_2[chn];
-                }
-            }
-        }
-    }
-    
-    for (int chn = 0; chn < CHN_NUM; chn++)
-    {
-        STD[CHN_NUM * 0 + chn] = STD_1[chn]     / total_pix;    //Sigma 1
-        STD[CHN_NUM * 1 + chn] = STD_2[chn]     / total_pix;    //Sigma 2
-        STD[CHN_NUM * 2 + chn] = STD_1_2[chn]   / total_pix;    //Sigma 1,2
-    }
-
-    
-}
-
-void SSIM(float* ssim, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
-{
-    float* img_averages = (float*)malloc(sizeof(float) * CHN_NUM * 2);
-    float* img_std = (float*)malloc(sizeof(float) * CHN_NUM * 3);
-    
-    float L_2 = 255 * 255;  //Max RGB Value ^ 2
-    
-    //Constants
-    float K1_2 = 0.01;              float K2_2 = 0.03;
-    float C1 = K1_2 * L_2;          float C2 = K2_2 * L_2;
-
-    Average(img_averages, img_1, img_2, width, height);
-    StandardDeviationSquare(img_std, img_averages, img_1, img_2, width, height);
-
-    for (int chn = 0; chn < CHN_NUM; chn++)
-        ssim[chn] = ((2 * img_averages[chn] * img_averages[CHN_NUM + chn] + C1) * (2 * img_std[CHN_NUM * 3 + chn] + C2)) /
-                    ((img_averages[chn] * img_averages[chn] + img_averages[CHN_NUM + chn] * img_averages[CHN_NUM + chn] + C1) * (img_std[CHN_NUM * 0 + chn] + img_std[CHN_NUM * 1 + chn] + C2));
-
-}
-
-void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int* width, int* height)
-{
-    for (int y = 0; y < *height; y++)
-    {
-        for (int x = 0; x < *width; x++)
-        {
-            img_diff[3 * (y * *width + x) + 0] = abs(img_1[3 * (y * *width + x) + 0] - img_2[3 * (y * *width + x) + 0]);
-            img_diff[3 * (y * *width + x) + 1] = abs(img_1[3 * (y * *width + x) + 1] - img_2[3 * (y * *width + x) + 1]);
-            img_diff[3 * (y * *width + x) + 2] = abs(img_1[3 * (y * *width + x) + 2] - img_2[3 * (y * *width + x) + 2]);
-        }
-    }
-}
-
-void Artifact_Detection(unsigned char* img_1, unsigned char* img_2, int* width, int* height, int window_size)
-{
-    int num_windows_x = ceil(*width / (float) window_size);
-    int num_windows_y = ceil(*height / (float) window_size);
-
-    unsigned char* img1_window = (unsigned char*)malloc(sizeof(unsigned char) * window_size * window_size * 3);
-    unsigned char* img2_window = (unsigned char*)malloc(sizeof(unsigned char) * window_size * window_size * 3);
+    float* difference_window = (float*)malloc(sizeof(float) * *width * *height * 3);
+    float* ssim_window = (float*)malloc(sizeof(float) * 3);
 
     int img_x = 0; 
     int img_y = 0;
+
+    float* metric_img = (float*)malloc(sizeof(float) * total_win_pix * 3);
+    float metric_temp;
+    //(Metric < TH) ? 0 : 1
 
     for (int win_y = 0; win_y < num_windows_y; win_y++)
     {
         for (int win_x = 0; win_x < num_windows_x; win_x++)
         {
             //DATA LOADING PHASE
-            for (int y = 0; y < window_size; y++)
+            for (int y = 0; y < *window_size; y++)
             {
-                for (int x = 0; x < window_size; x++)
+                for (int x = 0; x < *window_size; x++)
                 {
-                    img_x = x + win_x * window_size;
-                    img_y = y + win_y * window_size;
+                    img_x = x + win_x * *window_size;
+                    img_y = y + win_y * *window_size;
 
                     if ((img_y < *height) && (img_x < *width))
                     {
-                        img1_window[(y * window_size + x) * CHN_NUM] = img_1[(img_y * *width + img_x) * CHN_NUM];
-                        img2_window[(y * window_size + x) * CHN_NUM] = img_2[(img_y * *width + img_x) * CHN_NUM];
+                        for (int chn = 0; chn < CHN_NUM; chn++)
+                        {
+                            img1_window[(y * *window_size + x) * CHN_NUM + chn] = (float) img_1[(img_y * *width + img_x) * CHN_NUM + chn];
+                            img2_window[(y * *window_size + x) * CHN_NUM + chn] = (float) img_2[(img_y * *width + img_x) * CHN_NUM + chn];
+                        }
+                    }
+                    else
+                    {
+                        for (int chn = 0; chn < CHN_NUM; chn++)
+                        {
+                            img1_window[(y * *window_size + x) * CHN_NUM + chn] = -1.0;
+                            img2_window[(y * *window_size + x) * CHN_NUM + chn] = -1.0;
+                        }
                     }
                 }
             }
 
             //Image Difference Phase
+            ABS_Difference(difference_window, img1_window, img2_window, window_size, window_size);
+            SSIM(ssim_window, img1_window, img2_window, window_size, window_size);
+
+            //Metric Calculations
+            for (int y = 0; y < *window_size; y++)
+            {
+                for (int x = 0; x < *window_size; x++)
+                {
+                    img_x = x + win_x * *window_size;
+                    img_y = y + win_y * *window_size;
+
+                    if ((img_y < *height) && (img_x < *width))
+                    {
+                        for (int chn = 0; chn < CHN_NUM; chn++)
+                        {
+                            metric_temp = difference_window[(y * *window_size + x) * CHN_NUM + chn] * ssim_window[chn];
+                            mask_img[(img_y * *width + img_x) * CHN_NUM + chn] = (unsigned char) metric_temp;
+                            //mask_img/*metric_img*/[(y * *window_size + x) * CHN_NUM + chn]
+                        }
+                    }
+                }
+            }
+            //Gausian Blur Stage
 
         }
 
     }
+
+    //Reminder to free all the stuff
 
     
 }
@@ -319,18 +270,22 @@ int main()
 
         int* big_width = (int*)malloc(sizeof(int));
         int* big_height = (int*)malloc(sizeof(int));
+        int* window_size = (int*)malloc(sizeof(int));
+        *window_size = 8;
+
         int scale = 3;
 
         //*width = 320;
         //*height = 240;
         //img = createImage("test.ppm", width, height);
 
-        img = (unsigned char*)readPPM("Tuna_2.ppm", width, height);
+        img = (unsigned char*)readPPM("Lighthouse.ppm", width, height);
 
         *big_width = *width * scale; *big_height = *height * scale;
         unsigned char* big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
         unsigned char* big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
         unsigned char* big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+        //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
         printf("Image dimensions: %d x %d\n", *width, *height);
         printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
@@ -338,7 +293,8 @@ int main()
         nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
         //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
         bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
-        ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
+        //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
+        Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
 
         writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
         writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
