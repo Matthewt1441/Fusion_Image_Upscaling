@@ -12,7 +12,12 @@
 
 #include "helper.cuh"
 
+#include <ctime>
 
+#include <SDL.h>
+#undef main
+#include <SDL_ttf.h>
+#undef main
 
 void Artifact_Detection(unsigned char* mask_img, unsigned char* img_1, unsigned char* img_2, int* width, int* height, int* window_size, float TH)
 {
@@ -95,7 +100,9 @@ void Artifact_Detection(unsigned char* mask_img, unsigned char* img_1, unsigned 
     }
 
     //Reminder to free all the stuff
-
+    free(img1_window); free(img2_window);
+    free(difference_window);  free(ssim_window);
+    free(metric_img);
     
 }
 
@@ -273,34 +280,144 @@ int main()
         int* window_size = (int*)malloc(sizeof(int));
         *window_size = 8;
 
-        int scale = 3;
+        int scale = 2;
 
         //*width = 320;
         //*height = 240;
         //img = createImage("test.ppm", width, height);
 
-        img = (unsigned char*)readPPM("Lighthouse.ppm", width, height);
+        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+            printf("SDL initialization failed: %c\n", SDL_GetError());
+            return 1;
+        }
 
-        *big_width = *width * scale; *big_height = *height * scale;
-        unsigned char* big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
-        unsigned char* big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
-        unsigned char* big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
-        //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+        // Initialize SDL_ttf
+        if (TTF_Init() < 0) {
+            printf("SDL_ttf could not initialize! TTF_Error: %s\n", TTF_GetError());
+            SDL_Quit();
+            return EXIT_FAILURE;
+        }
 
-        printf("Image dimensions: %d x %d\n", *width, *height);
-        printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
+        bool RUNNING = true;
+        bool firstImg = true;
+        SDL_Window* window;
+        SDL_Renderer* renderer;
+        SDL_Texture* texture;
+        SDL_Event event;
+        SDL_PollEvent(&event);
 
-        nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
-        //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
-        bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
-        //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
-        Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
+        float diff = 0;
+        unsigned char* big_img_nn;
+        unsigned char* big_img_bic;
+        unsigned char* big_img_dif;
 
-        writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
-        writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
-        writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
+        std::time_t start, end;
+        
+        TTF_Font* Sans = TTF_OpenFont("Sans.ttf", 24);
 
-        free(img);      free(big_img_nn);   free(big_img_bic); free(big_img_dif);
+        SDL_Color White = { 255, 255, 255 };
+
+        char fps_str[50];
+
+        // as TTF_RenderText_Solid could only be used on
+        // SDL_Surface then you have to create the surface first
+        SDL_Surface* fps_msg;
+        SDL_Texture* fps_txt;
+
+        SDL_Rect Message_rect; //create a rect
+        Message_rect.x = 5;  //controls the rect's x coordinate 
+        Message_rect.y = 5; // controls the rect's y coordinte
+        Message_rect.w = 200; // controls the width of the rect
+        Message_rect.h = 30; // controls the height of the rect
+        int count = 0;
+
+        start = std::time(0);
+
+        double frame_cap = 10;
+        sprintf(fps_str, "FPS:%.*f", 3, 0.0);
+
+        while(RUNNING && event.type != SDL_QUIT)
+        {
+            if (count == frame_cap)
+            {
+                end = std::time(0);
+                diff = frame_cap / std::difftime(end, start);
+                sprintf(fps_str, "FPS:%.*f", 3, diff);
+                start = std::time(0);
+                count = 0;
+            }
+            
+            img = (unsigned char*)readPPM("Tuna_2.ppm", width, height);
+
+            *big_width = *width * scale; *big_height = *height * scale;
+            big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+
+            //printf("Image dimensions: %d x %d\n", *width, *height);
+            //printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
+
+            nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
+            //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
+            bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
+            //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
+            Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
+
+            //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
+            //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
+            //writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
+
+            if (firstImg)
+            {
+                window = SDL_CreateWindow("PPM Image", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, *big_width, *big_height, SDL_WINDOW_SHOWN);
+                if (!window) {
+                    printf("Window creation failed: %c\n", SDL_GetError());
+                    RUNNING = false;
+                }
+
+                renderer = SDL_CreateRenderer(window, -1, 0);
+                if (!renderer) {
+                    printf("Renderer creation failed: %c \n", SDL_GetError());
+                    RUNNING = false;
+                }
+
+                firstImg = false;
+
+            }
+
+            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, *big_width, *big_height);
+            if (!texture)
+            {
+                printf("Texture creation failed: %c \n", SDL_GetError());
+                RUNNING = false;
+            }
+
+            SDL_UpdateTexture(texture, nullptr, big_img_bic, *big_width * 3);
+            SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+
+            fps_msg = TTF_RenderText_Solid(Sans, fps_str, White);
+            fps_txt = SDL_CreateTextureFromSurface(renderer, fps_msg);
+
+            SDL_RenderCopy(renderer, fps_txt, NULL, &Message_rect);
+
+            SDL_RenderPresent(renderer);
+
+            SDL_PollEvent(&event);
+            SDL_DestroyTexture(texture);
+
+            SDL_FreeSurface(fps_msg);
+            SDL_DestroyTexture(fps_txt);
+
+            free(img); free(big_img_bic); free(big_img_nn);  free(big_img_dif);
+            count++;
+        }
+
+        
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+      
         free(width);    free(big_width);
         free(height);   free(big_height);
     }

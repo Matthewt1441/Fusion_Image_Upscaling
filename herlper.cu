@@ -188,6 +188,7 @@ void SSIM(float* ssim, float* img_1, float* img_2, int* width, int* height)
         ((img_averages[chn] * img_averages[chn] + img_averages[CHN_NUM + chn] * img_averages[CHN_NUM + chn] + C1) * (img_std[CHN_NUM * 0 + chn] + img_std[CHN_NUM * 1 + chn] + C2));
 
     //FREE THE AVERAGES & STD
+    free(img_averages); free(img_std);
 }
 
 void ABS_Difference(float* img_diff, float* img_1, float* img_2, int* width, int* height)
