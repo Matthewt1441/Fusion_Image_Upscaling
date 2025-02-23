@@ -318,6 +318,7 @@ int main()
         SDL_Color White = { 255, 255, 255 };
 
         char fps_str[50];
+        char file_name[50];
 
         // as TTF_RenderText_Solid could only be used on
         // SDL_Surface then you have to create the surface first
@@ -336,19 +337,28 @@ int main()
         double frame_cap = 10;
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
+        int max_image = 200;
+        int current_img = 1;
+
+        double processing_time = 0;
+
         while(RUNNING && event.type != SDL_QUIT)
         {
             if (count == frame_cap)
             {
-                end = std::time(0);
-                diff = frame_cap / std::difftime(end, start);
+        
+                diff = frame_cap / processing_time;
                 sprintf(fps_str, "FPS:%.*f", 3, diff);
-                start = std::time(0);
+                
                 count = 0;
+                processing_time = 0;
             }
             
-            img = (unsigned char*)readPPM("Tuna_2.ppm", width, height);
+            sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
 
+            img = (unsigned char*)readPPM(file_name, width, height);
+
+            start = std::time(0);
             *big_width = *width * scale; *big_height = *height * scale;
             big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
             big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
@@ -367,6 +377,10 @@ int main()
             //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
             //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
             //writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
+
+            end = std::time(0);
+
+            processing_time += std::difftime(end, start);
 
             if (firstImg)
             {
@@ -409,8 +423,12 @@ int main()
             SDL_FreeSurface(fps_msg);
             SDL_DestroyTexture(fps_txt);
 
-            free(img); free(big_img_bic); free(big_img_nn);  free(big_img_dif);
+            free(img); free(big_img_bic);// free(big_img_nn);  free(big_img_dif);
             count++;
+            current_img++;
+
+            if (current_img > max_image)
+                current_img = 1;
         }
 
         
