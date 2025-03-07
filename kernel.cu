@@ -334,7 +334,7 @@ int main()
 
         start = std::time(0);
 
-        double frame_cap = 10;
+        double frame_cap = 100;
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
@@ -368,11 +368,11 @@ int main()
             //printf("Image dimensions: %d x %d\n", *width, *height);
             //printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
 
-            nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
-            //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
-            bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
+            //nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
+            nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
+            //bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
             //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
-            Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
+            //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
 
             //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
             //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
