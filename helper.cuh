@@ -12,3 +12,6 @@ void SSIM(float* ssim, unsigned char* img_1, unsigned char* img_2, int* width, i
 
 void ABS_Difference(float* img_diff, float* img_1, float* img_2, int* width, int* height);
 void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int* width, int* height);
+void ABS_Difference_Grey(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int width, int height);
+
+void RGB2Greyscale(unsigned char* rgb_img, unsigned char* grey_img, int width, int height);

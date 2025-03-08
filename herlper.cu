@@ -96,6 +96,23 @@ void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char
     }
 }
 
+void ABS_Difference_Grey(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int width, int height)
+{
+
+    char img_1_signed = 0;
+    char img_2_signed = 0;
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            img_1_signed = (char)img_1[y*width + x];
+            img_2_signed = (char)img_2[y*width + x];
+            img_diff[y*width + x] = (unsigned char)abs(img_1_signed - img_2_signed);
+        }
+    }
+}
+
 //FLOAT IMPLEMENTATIONS THESE HAVE SPECIAL CHECKS FOR "NEGATIVE" PIXELS
 
 void Average(float* Avg, float* img_1, float* img_2, int* width, int* height)
@@ -200,6 +217,19 @@ void ABS_Difference(float* img_diff, float* img_1, float* img_2, int* width, int
             img_diff[3 * (y * *width + x) + 0] = abs(img_1[3 * (y * *width + x) + 0] - img_2[3 * (y * *width + x) + 0]);
             img_diff[3 * (y * *width + x) + 1] = abs(img_1[3 * (y * *width + x) + 1] - img_2[3 * (y * *width + x) + 1]);
             img_diff[3 * (y * *width + x) + 2] = abs(img_1[3 * (y * *width + x) + 2] - img_2[3 * (y * *width + x) + 2]);
+        }
+    }
+}
+
+void RGB2Greyscale(unsigned char* rgb_img, unsigned char* grey_img, int width, int height)
+{
+    int rgbidx = 0;
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            rgbidx = 3 * (y * width + x);
+            grey_img[y * width + x] = 0.21f * rgb_img[rgbidx + 0] + 0.71f * rgb_img[rgbidx + 1] + 0.07f * rgb_img[rgbidx + 2];
         }
     }
 }

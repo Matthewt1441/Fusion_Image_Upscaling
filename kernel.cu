@@ -147,7 +147,6 @@ float bicubicInterpolate(float p[4][4], float x, float y) {
     return cubicInterpolate(arr, x);
 }
 
-
 void bicubicInterpolation(unsigned char* big_img_data, int* big_width, int* big_height, unsigned char* img_data, int* width, int* height, int scale)
 {
     float window_r[4][4];
@@ -246,6 +245,19 @@ void writePPM(char* filename, char* img_data, int* width, int* height)
     file.write(img_data, size);
 }
 
+void writePPMGrey(char* filename, char* img_data, int width, int height)
+{
+    std::ofstream file(filename, std::ios::binary);
+    if (file.fail())
+        throw "File failed to open";
+
+    file << "P5" << "\n" << width << " " << height << "\n" << 255 << "\n";
+
+    size_t size = (width) * (height);
+
+    file.write(img_data, size);
+}
+
 char* createImage(char* filename, int* width, int* height)
 {
     char* img = (char*)malloc(sizeof(char) * *width * *height * 3);
@@ -308,8 +320,11 @@ int main()
 
         float diff = 0;
         unsigned char* big_img_nn;
+        unsigned char* big_img_nn_grey;
         unsigned char* big_img_bic;
+        unsigned char* big_img_bic_grey;
         unsigned char* big_img_dif;
+        unsigned char* big_img_dif_grey;
 
         std::time_t start, end;
         
@@ -361,18 +376,26 @@ int main()
             start = std::time(0);
             *big_width = *width * scale; *big_height = *height * scale;
             big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            big_img_nn_grey = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height);
             big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            big_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height);
             big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
+            big_img_dif_grey = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height);
             //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
             //printf("Image dimensions: %d x %d\n", *width, *height);
             //printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
 
             //nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
-            nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
-            //bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
+            nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
+            RGB2Greyscale(big_img_nn, big_img_nn_grey, *big_width, *big_height);
+            bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
+            RGB2Greyscale(big_img_bic, big_img_bic_grey, *big_width, *big_height);
+            
+            ABS_Difference_Grey(big_img_dif_grey, big_img_nn_grey, big_img_bic_grey, *big_width, *big_height);
             //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
             //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
+
 
             //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
             //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
@@ -384,6 +407,11 @@ int main()
 
             if (firstImg)
             {
+                
+                writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, *big_width, *big_height);
+                writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, *big_width, *big_height);
+                writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, *big_width, *big_height);
+
                 window = SDL_CreateWindow("PPM Image", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, *big_width, *big_height, SDL_WINDOW_SHOWN);
                 if (!window) {
                     printf("Window creation failed: %c\n", SDL_GetError());
@@ -399,7 +427,7 @@ int main()
                 firstImg = false;
 
             }
-
+            
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, *big_width, *big_height);
             if (!texture)
             {
@@ -407,7 +435,7 @@ int main()
                 RUNNING = false;
             }
 
-            SDL_UpdateTexture(texture, nullptr, big_img_bic, *big_width * 3);
+            SDL_UpdateTexture(texture, nullptr, big_img_nn, *big_width * 3);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
 
             fps_msg = TTF_RenderText_Solid(Sans, fps_str, White);
@@ -423,7 +451,7 @@ int main()
             SDL_FreeSurface(fps_msg);
             SDL_DestroyTexture(fps_txt);
 
-            free(img); free(big_img_bic);// free(big_img_nn);  free(big_img_dif);
+            free(img); free(big_img_nn);// free(big_img_nn);  free(big_img_dif);
             count++;
             current_img++;
 
