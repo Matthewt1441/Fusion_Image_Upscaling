@@ -13,13 +13,14 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{941B7C42-4489-4E56-8C9B-D4EA93CD8D9D}</ProjectGuid>
     <RootNamespace>Fusion_Image_Upscaling</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -81,6 +82,9 @@
   <ItemGroup>
     <CudaCompile Include="herlper.cu" />
     <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="navie_cuda.cu" />
+    <CudaCompile Include="ppm_image.cu" />
+    <CudaCompile Include="serial_code.cu" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.ppm" />
@@ -92,6 +96,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="helper.cuh" />
+    <ClInclude Include="naive_cuda.cuh" />
+    <ClInclude Include="ppm_image.cuh" />
+    <ClInclude Include="serial_code.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
