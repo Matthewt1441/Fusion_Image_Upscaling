@@ -21,6 +21,7 @@
 #include <SDL_ttf.h>
 #undef main
 
+
 void Artifact_Detection(unsigned char* mask_img, unsigned char* img_1, unsigned char* img_2, int* width, int* height, int* window_size, float TH)
 {
     int num_windows_x = ceil(*width / (float) *window_size);
@@ -326,6 +327,8 @@ int naiveCudaExecution()
     unsigned char* img_cuda;
     unsigned char* big_img_nn_cuda;
     unsigned char* big_img_bic_cuda;
+    unsigned char* big_img_nn_grey_cuda;
+    unsigned char* big_img_bic_grey_cuda;
 
     int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
     int window_size = 8;
@@ -343,7 +346,6 @@ int naiveCudaExecution()
     {
         width = (int*)malloc(sizeof(int));
         height = (int*)malloc(sizeof(int));
-
 
         cudaError_t cudaStatus;
 
@@ -364,12 +366,7 @@ int naiveCudaExecution()
             return EXIT_FAILURE;
         }
 
-
-
-        diff = 0;
-
         TTF_Font* Sans = TTF_OpenFont("Sans.ttf", 24);
-
         SDL_Color White = { 255, 255, 255 };
 
         char fps_str[50];
@@ -409,7 +406,6 @@ int naiveCudaExecution()
             sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
 
             img = (unsigned char*)readPPM(file_name, width, height);
-            //img = (unsigned char*)readPPM("Tuna_2.ppm", width, height);
 
             auto start = std::chrono::high_resolution_clock::now();
 
@@ -419,30 +415,27 @@ int naiveCudaExecution()
             big_width = const_width * scale; big_height = const_height * scale;
             big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
             big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            //big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
-            //printf("Image dimensions: %d x %d\n", *width, *height);
-            //printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
             cudaDeviceSynchronize();
+
             cudaStatus = cudaMalloc((void**)&big_img_nn_cuda, big_width * big_height * sizeof(unsigned char) * 3);
             if (cudaStatus != cudaSuccess)
-            {
                 fprintf(stderr, "NN Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-            }
 
             cudaStatus = cudaMalloc((void**)&big_img_bic_cuda, big_width * big_height * sizeof(unsigned char) * 3);
             if (cudaStatus != cudaSuccess)
-            {
                 fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-            }
 
+            cudaStatus = cudaMalloc((void**)&big_img_nn_grey_cuda, big_width * big_height * sizeof(unsigned char));
+            if (cudaStatus != cudaSuccess)
+                fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+            cudaStatus = cudaMalloc((void**)&big_img_bic_grey_cuda, big_width * big_height * sizeof(unsigned char));
+            if (cudaStatus != cudaSuccess)
+                fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
             if (cudaMalloc((void**)&img_cuda, const_width * const_height * sizeof(unsigned char) * 3) != cudaSuccess)
-            {
                 printf("Small Image Failed To Copy To Device.\n");      //Notify failure
-            }
-            //img_cuda;
 
             cudaMemcpy(img_cuda, img, sizeof(unsigned char) * const_width * const_height * 3, cudaMemcpyHostToDevice);
 
@@ -450,24 +443,19 @@ int naiveCudaExecution()
             dim3 Block(block_dim, block_dim);
 
             //Launch the kernel and pass device matricies and size information
-            nearestNeighborsKernel << < Grid, Block >> > (big_img_nn_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
-            bicubicInterpolationKernel << < Grid, Block >> > (big_img_nn_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
+            nearestNeighborsKernel <<< Grid, Block >> > (big_img_nn_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
+            bicubicInterpolationKernel <<< Grid, Block >> > (big_img_nn_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
 
+            cudaDeviceSynchronize();
+
+            RGB2GreyscaleKernel <<< Grid, Block >>> (big_img_nn_cuda, big_img_nn_grey_cuda, big_width, big_height);
+            RGB2GreyscaleKernel <<< Grid, Block >>> (big_img_bic_cuda, big_img_bic_grey_cuda, big_width, big_height);
+            
             cudaDeviceSynchronize();
 
             cudaMemcpy(big_img_nn, big_img_nn_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
             cudaMemcpy(big_img_bic, big_img_bic_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
-            //nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
-
-            //nearestNeighbors(big_img_bic, big_width, big_height, img, width, height, scale);
-            //bicubicInterpolation(big_img_bic, big_width, big_height, img, width, height, scale);
-            //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
-            //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
-
-            //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
-            //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
-            //writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
 
             auto end = std::chrono::high_resolution_clock::now();
             auto dur = end - start;
@@ -487,9 +475,7 @@ int naiveCudaExecution()
                     printf("Renderer creation failed: %c \n", SDL_GetError());
                     RUNNING = false;
                 }
-
                 firstImg = false;
-
             }
 
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, big_width, big_height);
@@ -517,6 +503,7 @@ int naiveCudaExecution()
 
             free(img); free(big_img_nn); free(big_img_bic);   //free(big_img_dif);
             cudaFree(img_cuda); cudaFree(big_img_nn_cuda); cudaFree(big_img_bic_cuda);
+            cudaFree(big_img_nn_grey_cuda); cudaFree(big_img_bic_grey_cuda);
 
             count++;
             current_img++;
@@ -524,7 +511,6 @@ int naiveCudaExecution()
             if (current_img > max_image)
                 current_img = 1;
         }
-
 
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
