@@ -154,6 +154,7 @@ int serialExecution()
         unsigned char* big_img_bic_grey;
         unsigned char* big_img_dif;
         unsigned char* big_img_dif_grey;
+        unsigned char* big_img_ssim_grey;
 
 
         TTF_Font* Sans = TTF_OpenFont("Sans.ttf", 24);
@@ -211,6 +212,7 @@ int serialExecution()
             big_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height);
             big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
             big_img_dif_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height);
+            big_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * (big_width-8) * (big_height-8));
             //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
             //printf("Image dimensions: %d x %d\n", *width, *height);
@@ -225,7 +227,7 @@ int serialExecution()
             ABS_Difference_Grey(big_img_dif_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
             //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
             //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
-
+            SSIM_Grey(big_img_ssim_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
 
             //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
             //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
@@ -242,6 +244,7 @@ int serialExecution()
                 writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, big_width, big_height);
                 writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, big_width, big_height);
                 writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, big_width, big_height);
+                writePPMGrey("output_SSIM_grey.ppm", (char*)big_img_ssim_grey, big_width-8, big_height-8);
 
                 window = SDL_CreateWindow("PPM Image", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, big_width, big_height, SDL_WINDOW_SHOWN);
                 if (!window) {
@@ -531,6 +534,6 @@ int naiveCudaExecution()
 
 int main()
 {
-    //return serialExecution();
-    return naiveCudaExecution();
+    return serialExecution();
+    //return naiveCudaExecution();
 }
