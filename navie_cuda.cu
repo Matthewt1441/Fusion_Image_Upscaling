@@ -58,6 +58,9 @@ __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned
     float window_g[4][4];
     float window_b[4][4];
 
+    int sample_x = 0;
+    int sample_y = 0;
+
     for (int y = 0; y < 4; y++)
     {
         for (int x = 0; x < 4; x++)
@@ -76,10 +79,24 @@ __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned
             {
                 if ((Row / scale + l < height) && (Col / scale + k < width))
                 {
-                    window_r[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 0];
-                    window_g[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 1];
-                    window_b[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 2];
+                    //window_r[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 0];
+                    //window_g[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 1];
+                    //window_b[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 2];
+
+                    sample_x = Col / scale + k;
+                    sample_y = Row / scale + l;
+
+                    if (sample_x > 0)
+                        sample_x -= 1;
+
+                    if (sample_y > 0)
+                        sample_y -= 1;
+
+                    window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
+                    window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
+                    window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
                 }
+
             }
         }
 
