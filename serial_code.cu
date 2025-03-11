@@ -1,4 +1,5 @@
 #include "serial_code.cuh"
+#include <cmath>
 
 void nearestNeighbors(unsigned char* big_img_data, int big_width, int big_height, unsigned char* img_data, int width, int height, int scale)
 {
@@ -54,6 +55,9 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
     int w = width;
     int h = height;
 
+    int sample_x = 0;
+    int sample_y = 0;
+
     for (int y = 0; y < 4; y++)
     {
         for (int x = 0; x < 4; x++)
@@ -76,9 +80,18 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
                     {
                         if ((y / f + l < h) && (x / f + k < w))
                         {
-                            window_r[l][k] = (float)img_data[3 * ((l + y / scale) * width + x / scale + k) + 0];
-                            window_g[l][k] = (float)img_data[3 * ((l + y / scale) * width + x / scale + k) + 1];
-                            window_b[l][k] = (float)img_data[3 * ((l + y / scale) * width + x / scale + k) + 2];
+                            sample_x = x / f + k;
+                            sample_y = y / f + l;
+
+                            if (sample_x > 0)
+                                sample_x-=1;
+
+                            if (sample_y > 0)
+                                sample_y-=1;
+
+                            window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
+                            window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
+                            window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
                         }
                     }
                 }

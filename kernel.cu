@@ -180,7 +180,7 @@ int serialExecution()
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
-        int current_img = 1;
+        int current_img = 60;
 
         double processing_time = 0;
 
@@ -239,9 +239,9 @@ int serialExecution()
             if (firstImg)
             {
 
-                writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, big_width, big_height);
-                writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, big_width, big_height);
-                writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, big_width, big_height);
+                //writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, big_width, big_height);
+                //writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, big_width, big_height);
+                //writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, big_width, big_height);
 
                 window = SDL_CreateWindow("PPM Image", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, big_width, big_height, SDL_WINDOW_SHOWN);
                 if (!window) {
@@ -265,7 +265,7 @@ int serialExecution()
                 printf("Texture creation failed: %c \n", SDL_GetError());
                 RUNNING = false;
             }
-            SDL_UpdateTexture(texture, nullptr, big_img_nn, big_width*3);
+            SDL_UpdateTexture(texture, nullptr, big_img_bic, big_width*3);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
 
             fps_msg = TTF_RenderText_Solid(Sans, fps_str, White);
@@ -531,6 +531,6 @@ int naiveCudaExecution()
 
 int main()
 {
-    //return serialExecution();
-    return naiveCudaExecution();
+    return serialExecution();
+    //return naiveCudaExecution();
 }
