@@ -55,7 +55,7 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
     int w = width;
     int h = height;
 
-    int sample_x = 0;
+    int sample_x = 0;//
     int sample_y = 0;
 
     for (int y = 0; y < 4; y++)
