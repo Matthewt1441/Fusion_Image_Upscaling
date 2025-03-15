@@ -16,3 +16,5 @@ void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char
 void ABS_Difference_Grey(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int width, int height);
 
 void RGB2Greyscale(unsigned char* rgb_img, unsigned char* grey_img, int width, int height);
+
+void WeightMap_Grey(unsigned char* weight_map, unsigned char* img_1, unsigned char* img_2, int width, int height);
