@@ -220,16 +220,16 @@ int serialExecution()
 
             //nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
             nearestNeighbors(big_img_nn, big_width, big_height, img, const_width, const_height, scale);
-            RGB2Greyscale(big_img_nn, big_img_nn_grey, big_width, big_height);
+            RGB2Greyscale(big_img_nn_grey, big_img_nn, big_width, big_height);
             bicubicInterpolation(big_img_bic, big_width, big_height, img, const_width, const_height, scale);
-            RGB2Greyscale(big_img_bic, big_img_bic_grey, big_width, big_height);
+            RGB2Greyscale(big_img_bic_grey, big_img_bic, big_width, big_height);
 
-            ABS_Difference_Grey(big_img_dif_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
+            //ABS_Difference_Grey(big_img_dif_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
             //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
             //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
-            SSIM_Grey(big_img_ssim_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
+            //SSIM_Grey(big_img_ssim_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
 
-            WeightMap_Grey(big_img_wm_grey, big_img_dif_grey, big_img_ssim_grey, big_width, big_height);
+            //WeightMap_Grey(big_img_wm_grey, big_img_dif_grey, big_img_ssim_grey, big_width, big_height);
             //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
             //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
             //writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
@@ -533,8 +533,87 @@ int naiveCudaExecution()
     return 0;
 }
 
+int Code_Testing()
+{
+    unsigned char* lr_img;
+    int lr_width;
+    int lr_height;
+
+    unsigned char* hr_img;
+    int hr_width;
+    int hr_height;
+
+    float scale = 3.0;
+
+
+    char file_name[50] = "./Testing_Images/Light_House_Small.ppm";
+
+    
+
+
+
+    lr_img = (unsigned char*)readPPM(file_name, &lr_width, &lr_height);
+
+    hr_width  = scale * lr_width;
+    hr_height = scale * lr_height;
+
+    //Pointers for each major step
+    unsigned char* hr_img_nn            = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height * 3);
+    unsigned char* hr_img_nn_grey       = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);
+    unsigned char* hr_img_bic           = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height * 3);
+    unsigned char* hr_img_bic_grey      = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);
+    unsigned char* hr_img_diff_grey     = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
+    unsigned char* hr_img_ssim_grey     = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
+    unsigned char* hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
+    float* hr_diff_map                  = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
+    float* hr_ssim_map                  = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
+    float* hr_artifact_map              = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
+
+
+
+    nearestNeighbors(hr_img_nn, hr_width, hr_height, lr_img, lr_width, lr_height, scale);
+    RGB2Greyscale(hr_img_nn_grey, hr_img_nn, hr_width, hr_height);
+    bicubicInterpolation(hr_img_bic, hr_width, hr_height, lr_img, lr_width, lr_height, scale);
+    RGB2Greyscale(hr_img_bic_grey, hr_img_bic, hr_width, hr_height);
+
+    ABS_Difference_Grey(hr_diff_map, hr_img_nn_grey, hr_img_bic_grey, hr_width, hr_height);
+    SSIM_Grey(hr_ssim_map, hr_img_nn_grey, hr_img_bic_grey, hr_width, hr_height);
+    MapMul(hr_artifact_map, hr_diff_map, hr_ssim_map, hr_width, hr_height);
+    //MapThreshold(hr_artifact_map, 0.1, hr_width, hr_height);
+
+    Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 1);           //Diff values are already between 0-255
+    Map2Greyscale(hr_img_ssim_grey, hr_ssim_map, hr_width, hr_height, 255);         //SSIM values are between 0-1 so scale up to 255
+    Map2Greyscale(hr_img_artifact_grey, hr_artifact_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+
+
+    writePPM("./Testing_Images/NN.ppm", (char*)hr_img_nn, hr_width, hr_height);
+    writePPM("./Testing_Images/BIC.ppm", (char*)hr_img_bic, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/NN_Grey.ppm", (char*)hr_img_nn_grey, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/BIC_Grey.ppm", (char*)hr_img_bic_grey, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/DIFF_Grey.ppm", (char*)hr_img_diff_grey, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/SSIM_Grey.ppm", (char*)hr_img_ssim_grey, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/Artifact_Grey.ppm", (char*)hr_img_artifact_grey, hr_width, hr_height);
+
+
+    //Free memory
+    free(hr_img_nn);
+    free(hr_img_nn_grey);
+    free(hr_img_bic);
+    free(hr_img_bic_grey);
+    free(hr_img_diff_grey);
+    free(hr_img_ssim_grey);
+    free(hr_img_artifact_grey);
+    free(hr_diff_map);
+    free(hr_ssim_map);
+    free(hr_artifact_map);
+
+    return 0;
+}
+
 int main()
 {
-    return serialExecution();
+    //return serialExecution();
     //return naiveCudaExecution();
+    return Code_Testing();
+
 }

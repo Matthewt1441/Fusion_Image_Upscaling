@@ -118,7 +118,7 @@ float calculateSSIM(float window1[8][8], float window2[8][8], int window_width, 
     return ssim;
 }
 
-void SSIM_Grey(unsigned char* ssim_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
+void SSIM_Grey(float* ssim_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
 {
     //int window_size = 8;
     //Window size dictates the size of structures that we can detect. Maybe should look into what effect this has
@@ -149,7 +149,7 @@ void SSIM_Grey(unsigned char* ssim_map, unsigned char* img_1, unsigned char* img
                 }
             }
 
-            ssim_map[y * width + x] = 255 * calculateSSIM(window_img1, window_img2, 8, 8);
+            ssim_map[y * width + x] = calculateSSIM(window_img1, window_img2, 8, 8);
 
         }
     }
@@ -170,19 +170,19 @@ void ABS_Difference(unsigned char* img_diff, unsigned char* img_1, unsigned char
     }
 }
 
-void ABS_Difference_Grey(unsigned char* img_diff, unsigned char* img_1, unsigned char* img_2, int width, int height)
+void ABS_Difference_Grey(float* diff_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
 {
 
-    char img_1_signed = 0;
-    char img_2_signed = 0;
+    int img_1_signed = 0;
+    int img_2_signed = 0;
 
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
         {
-            img_1_signed = (char)img_1[y*width + x];
-            img_2_signed = (char)img_2[y*width + x];
-            img_diff[y*width + x] = (unsigned char)abs(img_1_signed - img_2_signed);
+            img_1_signed = (int)img_1[y*width + x];
+            img_2_signed = (int)img_2[y*width + x];
+            diff_map[y*width + x] = (float)abs(img_1_signed - img_2_signed);
         }
     }
 }
@@ -295,7 +295,7 @@ void ABS_Difference(float* img_diff, float* img_1, float* img_2, int* width, int
     }
 }
 
-void RGB2Greyscale(unsigned char* rgb_img, unsigned char* grey_img, int width, int height)
+void RGB2Greyscale(unsigned char* grey_img, unsigned char* rgb_img, int width, int height)
 {
     int rgbidx = 0;
     for (int y = 0; y < height; y++)
@@ -308,20 +308,47 @@ void RGB2Greyscale(unsigned char* rgb_img, unsigned char* grey_img, int width, i
     }
 }
 
-void WeightMap_Grey(unsigned char* weight_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
+void Map2Greyscale(unsigned char* grey_img, float* map, int width, int height, int scale)
 {
-    float img1_input = 0;
-    float img2_input = 0;
-    float *weightMap_temp = (float*)malloc(sizeof(float) * (width) * (height));
-
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
         {
-            img1_input = (float)img_1[y * width + x];
-            img2_input = (float)img_2[y * width + x];
+            grey_img[y * width + x] = (unsigned char)(scale * map[y * width + x]);
+        }
+    }
+}
 
-            weight_map[y * width + x] = img1_input * img2_input;
+void MapMul(float* product_map, float* map_1, float* map_2, int width, int height)
+{
+    int idx = 0;
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            idx = y * width + x;
+            product_map[idx] = ((map_1[idx]/255.0) * map_2[idx]);
+        }
+    }
+}
+
+void MapThreshold(float* map, float threshold, int width, int height)
+{
+    int idx = 0;
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            idx = y * width + x;
+            if (map[idx] > threshold)
+            {
+                map[idx] = 1.0;
+            }
+            else
+            {
+                map[idx] = 0.0;
+            }
+           
         }
     }
 }
