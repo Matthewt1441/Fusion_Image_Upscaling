@@ -80,7 +80,7 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="herlper.cu" />
+    <CudaCompile Include="helper.cu" />
     <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="navie_cuda.cu" />
     <CudaCompile Include="ppm_image.cu" />

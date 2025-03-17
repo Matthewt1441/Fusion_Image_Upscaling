@@ -1,10 +1,12 @@
-﻿#include "cuda_runtime.h"
+﻿#define _USE_MATH_DEFINES
+#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <math.h>
 
 #include <fstream>
 #include <string>
@@ -546,7 +548,7 @@ int Code_Testing()
     float scale = 3.0;
 
 
-    char file_name[50] = "./Testing_Images/Light_House_Small.ppm";
+    char file_name[50] = "./Testing_Images/image108.ppm";
 
     
 
@@ -565,9 +567,12 @@ int Code_Testing()
     unsigned char* hr_img_diff_grey     = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
     unsigned char* hr_img_ssim_grey     = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
     unsigned char* hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
+    unsigned char* hr_img_artifact_blurred_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image savin
+    unsigned char* hr_img_fused         = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height * 3);     //Convert to 0-255 unsigned char for image saving
     float* hr_diff_map                  = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
     float* hr_ssim_map                  = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
     float* hr_artifact_map              = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
+    float* hr_artifact_blurred_map      = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
 
 
 
@@ -579,11 +584,22 @@ int Code_Testing()
     ABS_Difference_Grey(hr_diff_map, hr_img_nn_grey, hr_img_bic_grey, hr_width, hr_height);
     SSIM_Grey(hr_ssim_map, hr_img_nn_grey, hr_img_bic_grey, hr_width, hr_height);
     MapMul(hr_artifact_map, hr_diff_map, hr_ssim_map, hr_width, hr_height);
+    
     //MapThreshold(hr_artifact_map, 0.1, hr_width, hr_height);
 
-    Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 1);           //Diff values are already between 0-255
+    //GuassianBlur_Img(hr_img_artifact_blurred_grey, hr_img_bic_grey, hr_width, hr_height, 3, 1.5);
+    GuassianBlur_Map(hr_artifact_blurred_map, hr_artifact_map, hr_width, hr_height, 3, 1.5);
+    
+    MapThreshold(hr_artifact_blurred_map, 0.05, hr_width, hr_height);
+
+    Image_Fusion(hr_img_fused, hr_img_nn, hr_img_bic, hr_artifact_blurred_map, hr_width, hr_height);
+    //Image_Fusion(hr_img_fused, hr_img_bic, hr_img_nn, hr_artifact_blurred_map, hr_width, hr_height);
+
+
+    Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 255);           //Diff values are already between 0-255
     Map2Greyscale(hr_img_ssim_grey, hr_ssim_map, hr_width, hr_height, 255);         //SSIM values are between 0-1 so scale up to 255
     Map2Greyscale(hr_img_artifact_grey, hr_artifact_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+    Map2Greyscale(hr_img_artifact_blurred_grey, hr_artifact_blurred_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
 
 
     writePPM("./Testing_Images/NN.ppm", (char*)hr_img_nn, hr_width, hr_height);
@@ -593,6 +609,8 @@ int Code_Testing()
     writePPMGrey("./Testing_Images/DIFF_Grey.ppm", (char*)hr_img_diff_grey, hr_width, hr_height);
     writePPMGrey("./Testing_Images/SSIM_Grey.ppm", (char*)hr_img_ssim_grey, hr_width, hr_height);
     writePPMGrey("./Testing_Images/Artifact_Grey.ppm", (char*)hr_img_artifact_grey, hr_width, hr_height);
+    writePPMGrey("./Testing_Images/Artifact_Grey_Blurred.ppm", (char*)hr_img_artifact_blurred_grey, hr_width, hr_height);
+    writePPM("./Testing_Images/FUSED_IMAGE.ppm", (char*)hr_img_fused, hr_width, hr_height);
 
 
     //Free memory
@@ -603,9 +621,13 @@ int Code_Testing()
     free(hr_img_diff_grey);
     free(hr_img_ssim_grey);
     free(hr_img_artifact_grey);
+    free(hr_img_artifact_blurred_grey);
+    free(hr_img_fused);
+
     free(hr_diff_map);
     free(hr_ssim_map);
     free(hr_artifact_map);
+    free(hr_artifact_blurred_map);
 
     return 0;
 }
