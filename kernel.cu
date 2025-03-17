@@ -150,14 +150,22 @@ int serialExecution()
         int const_height;
 
         float diff = 0;
-        unsigned char* big_img_nn;
-        unsigned char* big_img_nn_grey;
-        unsigned char* big_img_bic;
-        unsigned char* big_img_bic_grey;
-        unsigned char* big_img_dif;
-        unsigned char* big_img_dif_grey;
-        unsigned char* big_img_ssim_grey;
 
+        int big_pixel_count = 0;
+
+        unsigned char* hr_img_nn;
+        unsigned char* hr_img_nn_grey;
+        unsigned char* hr_img_bic;
+        unsigned char* hr_img_bic_grey;
+        unsigned char* hr_img_diff_grey;
+        unsigned char* hr_img_ssim_grey;
+        unsigned char* hr_img_artifact_grey;
+        unsigned char* hr_img_artifact_blurred_grey;
+        unsigned char* hr_img_fused;
+        float* hr_diff_map;
+        float* hr_ssim_map;
+        float* hr_artifact_map;
+        float* hr_artifact_blurred_map;
 
         TTF_Font* Sans = TTF_OpenFont("Sans.ttf", 24);
 
@@ -208,33 +216,45 @@ int serialExecution()
             const_height = *height;
 
             big_width = const_width * scale; big_height = const_height * scale;
-            big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            big_img_nn_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height);
-            big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            big_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height);
-            big_img_dif = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            big_img_dif_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height);
-            big_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * (big_width) * (big_height));
+            big_pixel_count = big_width * big_height;
+
+            //Pointers for each major step
+            hr_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+            hr_img_nn_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+            hr_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_diff_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_blurred_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image savin
+            hr_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);     //Convert to 0-255 unsigned char for image saving
+            hr_diff_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_ssim_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_blurred_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
             //unsigned char* big_img_ssim = (unsigned char*)malloc(sizeof(unsigned char) * *big_width * *big_height * 3);
 
             //printf("Image dimensions: %d x %d\n", *width, *height);
             //printf("Upscale Image dimensions: %d x %d\n", *big_width, *big_height);
 
             //nearestNeighbors(big_img_nn, big_width, big_height, img, width, height, scale);
-            nearestNeighbors(big_img_nn, big_width, big_height, img, const_width, const_height, scale);
-            RGB2Greyscale(big_img_nn_grey, big_img_nn, big_width, big_height);
-            bicubicInterpolation(big_img_bic, big_width, big_height, img, const_width, const_height, scale);
-            RGB2Greyscale(big_img_bic_grey, big_img_bic, big_width, big_height);
+            nearestNeighbors(hr_img_nn, big_width, big_height, img, const_width, const_height, scale);
+            RGB2Greyscale(hr_img_nn_grey, hr_img_nn, big_width, big_height);
+            bicubicInterpolation(hr_img_bic, big_width, big_height, img, const_width, const_height, scale);
+            RGB2Greyscale(hr_img_bic_grey, hr_img_bic, big_width, big_height);
 
-            //ABS_Difference_Grey(big_img_dif_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
-            //ABS_Difference(big_img_dif, big_img_nn, big_img_bic, big_width, big_height);
-            //Artifact_Detection(big_img_dif, big_img_nn, big_img_bic, big_width, big_height, window_size, 0.9);
-            //SSIM_Grey(big_img_ssim_grey, big_img_nn_grey, big_img_bic_grey, big_width, big_height);
+            ABS_Difference_Grey(hr_diff_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            SSIM_Grey(hr_ssim_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            MapMul(hr_artifact_map, hr_diff_map, hr_ssim_map, big_width, big_height);
 
-            //WeightMap_Grey(big_img_wm_grey, big_img_dif_grey, big_img_ssim_grey, big_width, big_height);
-            //writePPM("output_NN.ppm", (char*)big_img_nn, big_width, big_height);
-            //writePPM("output_BIC.ppm", (char*)big_img_bic, big_width, big_height);
-            //writePPM("output_diff.ppm", (char*)big_img_dif, big_width, big_height);
+            //MapThreshold(hr_artifact_map, 0.1, hr_width, hr_height);
+
+            //GuassianBlur_Img(hr_img_artifact_blurred_grey, hr_img_bic_grey, hr_width, hr_height, 3, 1.5);
+            GuassianBlur_Map(hr_artifact_blurred_map, hr_artifact_map, big_width, big_height, 3, 1.5);
+
+            MapThreshold(hr_artifact_blurred_map, 0.05, big_width, big_height);
+
+            Image_Fusion(hr_img_fused, hr_img_nn, hr_img_bic, hr_artifact_blurred_map, big_width, big_height);
 
             auto end = std::chrono::high_resolution_clock::now();
             auto dur = end - start;
@@ -243,11 +263,10 @@ int serialExecution()
 
             if (firstImg)
             {
-
-                writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, big_width, big_height);
-                writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, big_width, big_height);
-                writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, big_width, big_height);
-                writePPMGrey("output_SSIM_grey.ppm", (char*)big_img_ssim_grey, big_width, big_height);
+                //writePPMGrey("output_NN_grey.ppm", (char*)big_img_nn_grey, big_width, big_height);
+                //writePPMGrey("output_BIC_grey.ppm", (char*)big_img_bic_grey, big_width, big_height);
+                ///writePPMGrey("output_DIFF_grey.ppm", (char*)big_img_dif_grey, big_width, big_height);
+                //writePPMGrey("output_SSIM_grey.ppm", (char*)big_img_ssim_grey, big_width, big_height);
 
                 window = SDL_CreateWindow("PPM Image", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, big_width, big_height, SDL_WINDOW_SHOWN);
                 if (!window) {
@@ -264,14 +283,14 @@ int serialExecution()
                 firstImg = false;
 
             }
-            
+
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, big_width, big_height);
             if (!texture)
             {
                 printf("Texture creation failed: %c \n", SDL_GetError());
                 RUNNING = false;
             }
-            SDL_UpdateTexture(texture, nullptr, big_img_bic, big_width*3);
+            SDL_UpdateTexture(texture, nullptr, hr_img_fused, big_width * 3);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
 
             fps_msg = TTF_RenderText_Solid(Sans, fps_str, White);
@@ -287,7 +306,24 @@ int serialExecution()
             SDL_FreeSurface(fps_msg);
             SDL_DestroyTexture(fps_txt);
 
-            free(img); free(big_img_nn); free(big_img_nn_grey); free(big_img_bic); free(big_img_bic_grey); free(big_img_dif); free(big_img_dif_grey);
+            free(img);
+
+            free(hr_img_nn);
+            free(hr_img_nn_grey);
+            free(hr_img_bic);
+            free(hr_img_bic_grey);
+            free(hr_img_diff_grey);
+            free(hr_img_ssim_grey);
+            free(hr_img_artifact_grey);
+            free(hr_img_artifact_blurred_grey);
+            free(hr_img_fused);
+
+            free(hr_diff_map);
+            free(hr_ssim_map);
+            free(hr_artifact_map);
+            free(hr_artifact_blurred_map);
+
+
             count++;
             current_img++;
 
@@ -300,7 +336,7 @@ int serialExecution()
         SDL_DestroyWindow(window);
         SDL_Quit();
 
-        free(width); free(height);  
+        free(width); free(height);
     }
 
     catch (const std::exception& e)
@@ -335,6 +371,18 @@ int naiveCudaExecution()
     unsigned char* big_img_bic_cuda;
     unsigned char* big_img_nn_grey_cuda;
     unsigned char* big_img_bic_grey_cuda;
+    
+    unsigned char* hr_img_nn_grey;
+    unsigned char* hr_img_bic_grey;
+    unsigned char* hr_img_diff_grey;
+    unsigned char* hr_img_ssim_grey;
+    unsigned char* hr_img_artifact_grey;
+    unsigned char* hr_img_artifact_blurred_grey;
+    unsigned char* hr_img_fused;
+    float* hr_diff_map;
+    float* hr_ssim_map;
+    float* hr_artifact_map;
+    float* hr_artifact_blurred_map;
 
     int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
     int window_size = 8;
@@ -422,6 +470,20 @@ int naiveCudaExecution()
             big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
             big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
 
+            int big_pixel_count = big_width * big_height;
+            hr_img_nn_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_diff_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_blurred_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image savin
+            hr_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);     //Convert to 0-255 unsigned char for image saving
+            hr_diff_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_ssim_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_blurred_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+
+
             cudaDeviceSynchronize();
 
             cudaStatus = cudaMalloc((void**)&big_img_nn_cuda, big_width * big_height * sizeof(unsigned char) * 3);
@@ -461,6 +523,21 @@ int naiveCudaExecution()
 
             cudaMemcpy(big_img_nn, big_img_nn_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
             cudaMemcpy(big_img_bic, big_img_bic_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+
+            cudaMemcpy(hr_img_nn_grey, big_img_nn_grey_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+            cudaMemcpy(hr_img_bic_grey, big_img_bic_grey_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+
+            cudaDeviceSynchronize();
+
+            ABS_Difference_Grey(hr_diff_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            SSIM_Grey(hr_ssim_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            MapMul(hr_artifact_map, hr_diff_map, hr_ssim_map, big_width, big_height);
+
+            GuassianBlur_Map(hr_artifact_blurred_map, hr_artifact_map, big_width, big_height, 3, 1.5);
+
+            MapThreshold(hr_artifact_blurred_map, 0.05, big_width, big_height);
+
+            Image_Fusion(hr_img_fused, big_img_nn, big_img_bic, hr_artifact_blurred_map, big_width, big_height);
 
 
             auto end = std::chrono::high_resolution_clock::now();
@@ -508,6 +585,18 @@ int naiveCudaExecution()
             SDL_DestroyTexture(fps_txt);
 
             free(img); free(big_img_nn); free(big_img_bic);   //free(big_img_dif);
+            free(hr_img_nn_grey);
+            free(hr_img_bic_grey);
+            free(hr_img_diff_grey);
+            free(hr_img_ssim_grey);
+            free(hr_img_artifact_grey);
+            free(hr_img_artifact_blurred_grey);
+            free(hr_img_fused);
+
+            free(hr_diff_map);
+            free(hr_ssim_map);
+            free(hr_artifact_map);
+            free(hr_artifact_blurred_map);
             cudaFree(img_cuda); cudaFree(big_img_nn_cuda); cudaFree(big_img_bic_cuda);
             cudaFree(big_img_nn_grey_cuda); cudaFree(big_img_bic_grey_cuda);
 
@@ -549,10 +638,6 @@ int Code_Testing()
 
 
     char file_name[50] = "./Testing_Images/image108.ppm";
-
-    
-
-
 
     lr_img = (unsigned char*)readPPM(file_name, &lr_width, &lr_height);
 
@@ -635,7 +720,7 @@ int Code_Testing()
 int main()
 {
     //return serialExecution();
-    //return naiveCudaExecution();
-    return Code_Testing();
+    return naiveCudaExecution();
+    //return Code_Testing();
 
 }
