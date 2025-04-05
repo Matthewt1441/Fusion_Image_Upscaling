@@ -64,3 +64,4 @@ __global__ void nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel(unsig
         grey_big_img_data[Row * big_width + Col] = 0.21f * r + 0.71f * g + 0.07f * b;
     }
 }
+
