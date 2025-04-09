@@ -1,3 +1,5 @@
+#include "util.cuh"
+
 __global__ void RGB2GreyscaleKernel(unsigned char* rgb_img, unsigned char* grey_img, int width, int height);
 __global__ void nearestNeighborsKernel(unsigned char* big_img_data, unsigned char* img_data, int big_width, int big_height, int width, int height, int scale);
 __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned char* img_data, int big_width, int big_height, int width, int height, int scale);
@@ -7,3 +9,4 @@ __global__ void MapMulKernel(float* product_map, float* map_1, float* map_2, int
 __global__ void GuassianBlur_Map_Kernel(float* blur_map, float* input_map, int width, int height, int radius, float sigma);
 __global__ void MapThreshold_Kernel(float* map, float threshold, int width, int height);
 __global__ void Image_Fusion_Kernel(unsigned char* fused_img, unsigned char* img_1, unsigned char* img_2, float* weight_map, int width, int height);
+__global__ void Image_Fusion_Kernel_RGBA(RGBA_t* fused_img, RGBA_t* img_1, RGBA_t* img_2, float* weight_map, int width, int height);

@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "naive_cuda.cuh"
+#include "util.cuh"
 
 const int CHN_NUM = 3;
 
@@ -17,6 +18,30 @@ __global__ void Image_Fusion_Kernel(unsigned char* fused_img, unsigned char* img
         fused_img[img_idx + 0] = img_1[img_idx + 0] * weight_map[map_idx] + img_2[img_idx + 0] * (1.0 - weight_map[map_idx]);
         fused_img[img_idx + 1] = img_1[img_idx + 1] * weight_map[map_idx] + img_2[img_idx + 1] * (1.0 - weight_map[map_idx]);
         fused_img[img_idx + 2] = img_1[img_idx + 2] * weight_map[map_idx] + img_2[img_idx + 2] * (1.0 - weight_map[map_idx]);
+    }
+}
+
+__global__ void Image_Fusion_Kernel_RGBA(RGBA_t* fused_img, RGBA_t* img_1, RGBA_t* img_2, float* weight_map, int width, int height)
+{
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int map_idx = Row * width + Col;
+    //int img_idx = 3 * map_idx;
+    RGBA_t rgba_pxl1;
+    RGBA_t rgba_pxl2;
+    RGBA_t rgba_fused;
+
+    if (Row < height && Col < width)
+    {
+        rgba_pxl1 = img_1[map_idx];
+        rgba_pxl2 = img_2[map_idx];
+
+        rgba_fused.r = rgba_pxl1.r * weight_map[map_idx] + rgba_pxl2.r * (1.0 - weight_map[map_idx]);
+        rgba_fused.g = rgba_pxl1.g * weight_map[map_idx] + rgba_pxl2.g * (1.0 - weight_map[map_idx]);
+        rgba_fused.b = rgba_pxl1.b * weight_map[map_idx] + rgba_pxl2.b * (1.0 - weight_map[map_idx]);
+
+        fused_img[map_idx] = rgba_fused;
     }
 }
 

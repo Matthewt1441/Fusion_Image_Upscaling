@@ -51,6 +51,7 @@ int sharedMemCudaOptimizedExecution()
     float* big_artifact_map_cuda;
     float* big_artifact_blurred_map_cuda;
 
+    RGBA_t* big_rgba_img_fused_cuda;
     unsigned char* big_img_fused_cuda;
 
     int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
@@ -139,11 +140,9 @@ int sharedMemCudaOptimizedExecution()
 
             cudaDeviceSynchronize();
 
-            //Original Image
+            //Original Image & RGBA Image
             if (cudaMalloc((void**)&d_img, width * height * sizeof(unsigned char) * 3) != cudaSuccess)
             fprintf(stderr, "Original Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-            //RGBA Image
             if (cudaMalloc((void**)&d_RGBA_img, width * height * sizeof(RGBA_t)) != cudaSuccess)
                 fprintf(stderr, "RGBA Original Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
@@ -165,8 +164,10 @@ int sharedMemCudaOptimizedExecution()
             if (cudaMalloc((void**)&big_artifact_blurred_map_cuda, big_width * big_height * sizeof(float)) != cudaSuccess)
                 fprintf(stderr, "Blured Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
-            //Final Image
+            //Final Image and RGBA Image
             if (cudaMalloc((void**)&big_img_fused_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+                fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+            if (cudaMalloc((void**)&big_rgba_img_fused_cuda, big_width * big_height * sizeof(RGBA_t)) != cudaSuccess)
                 fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
             cudaMemcpy(d_img, h_img, sizeof(unsigned char) * width * height * 3, cudaMemcpyHostToDevice);
@@ -182,11 +183,11 @@ int sharedMemCudaOptimizedExecution()
             bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             //nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel << < Grid, Block, block_dim * sizeof(unsigned char) >> >(big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
-            //Artifact_Grey_Kernel << < Grid, Block >> > (big_artifact_map_cuda, big_img_nn_grey_cuda, big_img_bic_grey_cuda, big_width, big_height);
-            //GuassianBlur_Threshold_Map_Kernel << < Grid, Block >> > (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
-            //Image_Fusion_Kernel << < Grid, Block >> > (big_img_fused_cuda, big_img_nn_cuda, big_img_bic_cuda, big_artifact_blurred_map_cuda, big_width, big_height);
+            Artifact_Grey_Kernel <<< Grid, Block >>> (big_artifact_map_cuda, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
+            GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>> (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
+            Image_Fusion_Kernel_RGBA <<< Grid, Block >>> (big_rgba_img_fused_cuda, d_big_img_nn, d_big_img_bic, big_artifact_blurred_map_cuda, big_width, big_height);
  
-            rgbaToRGB_Kernel <<< ceil((big_width * big_height) / 256.0), 256 >>> (big_img_fused_cuda, d_big_img_bic, big_width * big_height);
+            rgbaToRGB_Kernel <<< ceil((big_width * big_height) / 256.0), 256 >>> (big_img_fused_cuda, big_rgba_img_fused_cuda, big_width * big_height);
             cudaDeviceSynchronize();
 
             cudaMemcpy(h_big_img_fused, big_img_fused_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
