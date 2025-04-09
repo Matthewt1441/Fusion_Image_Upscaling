@@ -179,14 +179,14 @@ int sharedMemCudaOptimizedExecution()
             rgbToRGBA_Kernel <<< ceil((width * height)/256.0), 256 >>> (d_RGBA_img, d_img, width * height);
 
             //Launch the kernel and pass device matricies and size information
-            //bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             //nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel << < Grid, Block, block_dim * sizeof(unsigned char) >> >(big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
             //Artifact_Grey_Kernel << < Grid, Block >> > (big_artifact_map_cuda, big_img_nn_grey_cuda, big_img_bic_grey_cuda, big_width, big_height);
             //GuassianBlur_Threshold_Map_Kernel << < Grid, Block >> > (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
             //Image_Fusion_Kernel << < Grid, Block >> > (big_img_fused_cuda, big_img_nn_cuda, big_img_bic_cuda, big_artifact_blurred_map_cuda, big_width, big_height);
  
-            rgbaToRGB_Kernel <<< ceil((big_width * big_height) / 256.0), 256 >>> (big_img_fused_cuda, d_big_img_nn, big_width * big_height);
+            rgbaToRGB_Kernel <<< ceil((big_width * big_height) / 256.0), 256 >>> (big_img_fused_cuda, d_big_img_bic, big_width * big_height);
             cudaDeviceSynchronize();
 
             cudaMemcpy(h_big_img_fused, big_img_fused_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);

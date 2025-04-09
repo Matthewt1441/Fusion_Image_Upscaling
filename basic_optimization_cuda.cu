@@ -277,81 +277,78 @@ __global__ void bicubicInterpolation_GreyCon_Kernel(unsigned char* big_img_data,
 }
 
 
-//__global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
-//{
-//
-//    int Row = blockIdx.y * blockDim.y + threadIdx.y;
-//    int Col = blockIdx.x * blockDim.x + threadIdx.x;
-//
-//    float window_r[4][4];
-//    float window_g[4][4];
-//    float window_b[4][4];
-//
-//    int sample_x = 0;
-//    int sample_y = 0;
-//
-//    unsigned char r = 0;
-//    unsigned char g = 0;
-//    unsigned char b = 0;
-//
-//    if (Row < big_height && Col < big_width)
-//    {
-//        for (int y = 0; y < 4; y++)
-//        {
-//            for (int x = 0; x < 4; x++)
-//            {
-//                window_r[y][x] = 0;
-//                window_g[y][x] = 0;
-//                window_b[y][x] = 0;
-//            }
-//        }
-//
-//        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
-//        {
-//            for (int l = 0; l < 4; l++)
-//            {
-//                for (int k = 0; k < 4; k++)
-//                {
-//                    if ((Row / scale + l < height) && (Col / scale + k < width))
-//                    {
-//                        sample_x = Col / scale + k;
-//                        sample_y = Row / scale + l;
-//
-//                        if (sample_x > 0)
-//                            sample_x -= 1;
-//
-//                        if (sample_y > 0)
-//                            sample_y -= 1;
-//
-//                        window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
-//                        window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
-//                        window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
-//                    }
-//
-//                }
-//            }
-//
-//            r = (unsigned char)bicubicInterpolateDevice_GreyCon(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-//            g = (unsigned char)bicubicInterpolateDevice_GreyCon(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-//            b = (unsigned char)bicubicInterpolateDevice_GreyCon(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-//
-//            big_img_data[3 * (Row * big_width + Col) + 0] = r;
-//            big_img_data[3 * (Row * big_width + Col) + 1] = g;
-//            big_img_data[3 * (Row * big_width + Col) + 2] = b;
-//
-//            grey_big_img_data[Row * big_width + Col] = 0.21f * r + 0.71f * g + 0.07f * b;
-//        }
-//        else
-//        {
-//            r = img_data[3 * ((Row / scale) * width + (Col / scale)) + 0];
-//            g = img_data[3 * ((Row / scale) * width + (Col / scale)) + 1];
-//            b = img_data[3 * ((Row / scale) * width + (Col / scale)) + 2];
-//
-//            big_img_data[3 * (Row * big_width + Col) + 0] = r;
-//            big_img_data[3 * (Row * big_width + Col) + 1] = g;
-//            big_img_data[3 * (Row * big_width + Col) + 2] = b;
-//
-//            grey_big_img_data[Row * big_width + Col] = 0.21f * r + 0.71f * g + 0.07f * b;
-//        }
-//    }
-//}
+__global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
+{
+
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float window_r[4][4];
+    float window_g[4][4];
+    float window_b[4][4];
+
+    int sample_x = 0;
+    int sample_y = 0;
+
+    RGBA_t rgba_val;
+    //unsigned char r = 0;
+    //unsigned char g = 0;
+    //unsigned char b = 0;
+
+    if (Row < big_height && Col < big_width)
+    {
+        for (int y = 0; y < 4; y++)
+        {
+            for (int x = 0; x < 4; x++)
+            {
+                window_r[y][x] = 0;
+                window_g[y][x] = 0;
+                window_b[y][x] = 0;
+            }
+        }
+
+        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
+        {
+            for (int l = 0; l < 4; l++)
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    if ((Row / scale + l < height) && (Col / scale + k < width))
+                    {
+                        sample_x = Col / scale + k;
+                        sample_y = Row / scale + l;
+
+                        if (sample_x > 0)
+                            sample_x -= 1;
+
+                        if (sample_y > 0)
+                            sample_y -= 1;
+
+                        rgba_val = img_data[sample_y * width + sample_x];
+
+                        window_r[l][k] = (float)rgba_val.r;
+                        window_g[l][k] = (float)rgba_val.g;
+                        window_b[l][k] = (float)rgba_val.b;
+                    }
+
+                }
+            }
+
+            rgba_val.r = (unsigned char)bicubicInterpolateDevice_GreyCon(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            rgba_val.g = (unsigned char)bicubicInterpolateDevice_GreyCon(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            rgba_val.b = (unsigned char)bicubicInterpolateDevice_GreyCon(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+
+            big_img_data[Row * big_width + Col] = rgba_val;
+
+            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+        }
+        else
+        {
+            rgba_val = img_data[(Row / scale) * width + (Col / scale)];
+
+            big_img_data[Row * big_width + Col] = rgba_val;
+
+            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+        }
+    }
+}
