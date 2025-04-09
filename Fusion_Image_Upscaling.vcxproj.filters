@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="basic_optimization_cuda.cu" />
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="navie_cuda.cu" />
+    <CudaCompile Include="ppm_image.cu" />
+    <CudaCompile Include="serial_code.cu" />
+    <CudaCompile Include="shared_memory_cuda.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Basic_CUDA_Optimize_Kernel.cuh" />
+    <ClInclude Include="basic_optimization_cuda.cuh" />
+    <ClInclude Include="naive_cuda.cuh" />
+    <ClInclude Include="Naive_CUDA_Kernel.cuh" />
+    <ClInclude Include="ppm_image.cuh" />
+    <ClInclude Include="serial_code.cuh" />
+    <ClInclude Include="Serial_Kernel.cuh" />
+    <ClInclude Include="shared_memory_cuda.cuh" />
+    <ClInclude Include="Shared_Mem_CUDA_Kernel.cuh" />
+    <ClInclude Include="util.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SDL2.dll" />
+    <None Include="SDL2_ttf.dll" />
+  </ItemGroup>
+</Project>

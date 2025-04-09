@@ -20,7 +20,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -88,12 +88,8 @@
     <CudaCompile Include="shared_memory_cuda.cu" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="example.ppm" />
-    <None Include="Halo-Infinite-Gameplay.ppm" />
     <None Include="SDL2.dll" />
     <None Include="SDL2_ttf.dll" />
-    <None Include="text.ppm" />
-    <None Include="Tuna_2.ppm" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Basic_CUDA_Optimize_Kernel.cuh" />
@@ -105,6 +101,7 @@
     <ClInclude Include="Serial_Kernel.cuh" />
     <ClInclude Include="shared_memory_cuda.cuh" />
     <ClInclude Include="Shared_Mem_CUDA_Kernel.cuh" />
+    <ClInclude Include="util.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
