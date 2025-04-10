@@ -135,3 +135,104 @@ __global__ void nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel(unsig
     }
 }
 
+
+__device__ float cubicInterpolateDevice_Shared(float p[4], float x)
+{
+    float output = p[1] + 0.5 * x * (p[2] - p[0] + x * (2.0 * p[0] - 5.0 * p[1] + 4.0 * p[2] - p[3] + x * (3.0 * (p[1] - p[2]) + p[3] - p[0])));
+
+    output = output * ((output <= 255.0) && (output >= 0.0)) + 255 * (output > 255.0) + 0 * (output < 0);
+    return output;
+}
+
+__device__ float bicubicInterpolateDevice_Shared(float p[4][4], float x, float y)
+{
+    float arr[4];
+    arr[0] = cubicInterpolateDevice_Shared(p[0], y);
+    arr[1] = cubicInterpolateDevice_Shared(p[1], y);
+    arr[2] = cubicInterpolateDevice_Shared(p[2], y);
+    arr[3] = cubicInterpolateDevice_Shared(p[3], y);
+    return cubicInterpolateDevice_Shared(arr, x);
+}
+
+//Run with an 8x8 block size
+__global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
+{
+    //Upscaled Image Coordinates (Output)
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    __shared__ float window_r[4][4];
+    __shared__ float window_g[4][4];
+    __shared__ float window_b[4][4];
+
+    RGBA_t rgba_val;
+
+    //Low Res Image Coordinates (Input)
+    //Always read in 4x4 pixels no matter the upscaling factor.
+    int input_row = blockIdx.y * 4 + threadIdx.y;
+    int input_col = blockIdx.x * 4 + threadIdx.x;
+
+    //Fill shared memory arrays
+    if (threadIdx.x < 4 && threadIdx.y < 4)
+    {
+        rgba_val = img_data[input_row * width + input_col];
+
+        window_r[input_row][input_col] = (float)rgba_val.r;
+        window_g[input_row][input_col] = (float)rgba_val.g;
+        window_b[input_row][input_col] = (float)rgba_val.b;
+    }
+    __syncthreads();
+
+
+    int sample_x = 0;
+    int sample_y = 0;
+
+    if (Row < big_height && Col < big_width)
+    {
+        //What is this checking?
+        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
+        {
+            //for (int l = 0; l < 4; l++)
+            //{
+            //    for (int k = 0; k < 4; k++)
+            //    {
+            //        if ((Row / scale + l < height) && (Col / scale + k < width))
+            //        {
+            //            sample_x = Col / scale + k;
+            //            sample_y = Row / scale + l;
+
+            //            if (sample_x > 0)
+            //                sample_x -= 1;
+
+            //            if (sample_y > 0)
+            //                sample_y -= 1;
+
+            //            rgba_val = img_data[sample_y * width + sample_x];
+
+            //            window_r[l][k] = (float)rgba_val.r;
+            //            window_g[l][k] = (float)rgba_val.g;
+            //            window_b[l][k] = (float)rgba_val.b;
+            //        }
+
+            //    }
+            //}
+
+            rgba_val.r = (unsigned char)bicubicInterpolateDevice_Shared(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            rgba_val.g = (unsigned char)bicubicInterpolateDevice_Shared(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            rgba_val.b = (unsigned char)bicubicInterpolateDevice_Shared(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+
+            big_img_data[Row * big_width + Col] = rgba_val;
+
+            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+        }
+        else
+        {
+            rgba_val = img_data[(Row / scale) * width + (Col / scale)];
+
+            big_img_data[Row * big_width + Col] = rgba_val;
+
+            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+        }
+    }
+
+}
