@@ -180,6 +180,8 @@ int sharedMemCudaOptimizedExecution()
             cudaDeviceSynchronize();
 
             dim3 Grid(((big_width - 1) / block_dim) + 1, ((big_height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+
+            dim3 Grid2(((width - 1) / block_dim) + 1, ((height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
             dim3 Block(block_dim, block_dim);
 
             dim3 BiCubic_Grid(((big_width - 1) / 8) + 1, ((big_height - 1) / 8) + 1);
@@ -189,10 +191,10 @@ int sharedMemCudaOptimizedExecution()
             rgbToRGBA_Kernel <<< ceil((width * height)/256.0), 256 >>> (d_RGBA_img, d_img, width * height);
 
             //Launch the kernel and pass device matricies and size information
-            //bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
-            bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA <<<BiCubic_Grid, BiCubic_Block>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            nearestNeighbors_shared_memory_Kernel << < Grid2, Block >> > (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            //bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA <<<BiCubic_Grid, BiCubic_Block>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             
-            nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
             //nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel << < Grid, Block, block_dim * sizeof(unsigned char) >> >(big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
             Artifact_Grey_Kernel <<< Grid, Block >>> (big_artifact_map_cuda, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
             GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>> (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
