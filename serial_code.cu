@@ -50,19 +50,24 @@ void SSIM_Grey(float* ssim_map, unsigned char* img_1, unsigned char* img_2, int 
     float window_img1[8][8] = { 0 };
     float window_img2[8][8] = { 0 };
 
+    int x_blocks = (width - 1) / 8 + 1;
+    int y_blocks = (height - 1) / 8 + 1;
+
+    float ssim_num = 0;
+
     //For now, generate a smaller image.
-    for (int y = 0; y < height; y++)
+    for (int y_blk = 0; y_blk < y_blocks; y_blk++)
     {
-        for (int x = 0; x < width; x++)
+        for (int x_blk = 0; x_blk < x_blocks; x_blk++)
         {
             for (int i = 0; i < 8; i++)
             {
                 for (int j = 0; j < 8; j++)
                 {
-                    if (((y + i) * width + (x + j)) < (width * height))
+                    if ((x_blk * 8 + j) < (width) && ((y_blk * 8 + i) * height))
                     {
-                        window_img1[i][j] = img_1[(y + i) * width + (x + j)];
-                        window_img2[i][j] = img_2[(y + i) * width + (x + j)];
+                        window_img1[i][j] = img_1[(y_blk * 8 + i) * width + (x_blk * 8 + j)];
+                        window_img2[i][j] = img_2[(y_blk * 8 + i) * width + (x_blk * 8 + j)];
                     }
                     else
                     {
@@ -72,11 +77,20 @@ void SSIM_Grey(float* ssim_map, unsigned char* img_1, unsigned char* img_2, int 
                 }
             }
 
-            ssim_map[y * width + x] = calculateSSIM(window_img1, window_img2, 8, 8);
+            ssim_num = calculateSSIM(window_img1, window_img2, 8, 8);
 
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 8; j++)
+                {
+                    if ((x_blk * 8 + j) < (width) && ((y_blk * 8 + i) * height))
+                    {
+                        ssim_map[(y_blk * 8 + i) * width + (x_blk * 8 + j)] = ssim_num;
+                    }
+                }
+            }
         }
     }
-
 }
 
 void ABS_Difference_Grey(float* diff_map, unsigned char* img_1, unsigned char* img_2, int width, int height)

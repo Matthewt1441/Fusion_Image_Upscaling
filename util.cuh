@@ -1,5 +1,7 @@
 #pragma once
 
+#define USE_SDL
+
 typedef struct __align__(4) { // Or alignas(4) in C++11
     unsigned char r;
     unsigned char g;
