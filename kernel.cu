@@ -9,11 +9,6 @@
 
 #include <chrono>
 
-#include <SDL.h>
-#undef main
-#include <SDL_ttf.h>
-#undef main
-
 int main()
 {
     //return serialExecution();
@@ -21,5 +16,4 @@ int main()
     //return Code_Testing();
     //return basicCudaOptimizedExecution();
     return sharedMemCudaOptimizedExecution();
-
 }

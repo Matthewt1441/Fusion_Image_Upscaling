@@ -17,6 +17,8 @@
 
 #include <chrono>
 
+#ifdef USE_SDL
+
 #include <SDL.h>
 #undef main
 #include <SDL_ttf.h>
@@ -258,3 +260,170 @@ int basicCudaOptimizedExecution()
     cudaDeviceReset();
     return 0;
 }
+
+#else
+int basicCudaOptimizedExecution()
+{
+    int* width;
+    int* height;
+
+    int const_width;
+    int const_height;
+
+    int big_width;
+    int big_height;
+
+    float diff;
+
+    //Host Array Pointers
+    unsigned char* img;
+    unsigned char* big_img_nn;
+    unsigned char* big_img_bic;
+    unsigned char* big_img_fused;
+
+    //Device Array Pointers
+    unsigned char* img_cuda;
+    unsigned char* big_img_nn_cuda;
+    unsigned char* big_img_bic_cuda;
+    unsigned char* big_img_nn_grey_cuda;
+    unsigned char* big_img_bic_grey_cuda;
+
+    float* big_artifact_map_cuda;
+    float* big_artifact_blurred_map_cuda;
+
+    unsigned char* big_img_fused_cuda;
+
+    int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
+    int window_size = 8;
+    int scale = 2;
+
+    bool RUNNING = true;
+    bool firstImg = true;
+
+    try
+    {
+        width = (int*)malloc(sizeof(int));
+        height = (int*)malloc(sizeof(int));
+
+        cudaError_t cudaStatus;
+
+        cudaStatus = cudaSetDevice(0);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+        }
+
+        char fps_str[50];
+        char file_name[50];
+
+        int count = 0;
+
+        double frame_cap = 10;
+        sprintf(fps_str, "FPS:%.*f", 3, 0.0);
+
+        int max_image = 200;
+        int current_img = 1;
+
+        double processing_time = 0;
+
+        while (RUNNING)
+        {
+            if (count == max_image)
+            {
+                diff = 1000 * count / processing_time;
+                printf("FPS:%.*f\n", 3, diff);
+
+                count = 0;
+                processing_time = 0;
+                RUNNING = false;
+            }
+
+            sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+
+            img = (unsigned char*)readPPM(file_name, width, height);
+
+            auto start = std::chrono::high_resolution_clock::now();
+
+            const_width = *width;
+            const_height = *height;
+
+            big_width = const_width * scale; big_height = const_height * scale;
+            big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+            big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+            big_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+
+            int big_pixel_count = big_width * big_height;
+
+            cudaDeviceSynchronize();
+
+            //Original Image
+            if (cudaMalloc((void**)&img_cuda, const_width * const_height * sizeof(unsigned char) * 3) != cudaSuccess)
+                printf("Original Image Failed To Copy To Device.\n");      //Notify failure
+
+            //Upscaled Images
+            if (cudaMalloc((void**)&big_img_nn_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+                fprintf(stderr, "NN Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+            if (cudaMalloc((void**)&big_img_bic_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+                fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+            //Grey Versions for Upscaled Images
+            if (cudaMalloc((void**)&big_img_nn_grey_cuda, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
+                fprintf(stderr, "NN Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+            if (cudaMalloc((void**)&big_img_bic_grey_cuda, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
+                fprintf(stderr, "BIC Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+            //Maps for Fusion
+            if (cudaMalloc((void**)&big_artifact_map_cuda, big_width * big_height * sizeof(float)) != cudaSuccess)
+                fprintf(stderr, "Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+            if (cudaMalloc((void**)&big_artifact_blurred_map_cuda, big_width * big_height * sizeof(float)) != cudaSuccess)
+                fprintf(stderr, "Blured Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+            //Final Image
+            if (cudaMalloc((void**)&big_img_fused_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+                fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+            cudaMemcpy(img_cuda, img, sizeof(unsigned char) * const_width * const_height * 3, cudaMemcpyHostToDevice);
+
+            dim3 Grid(((big_width - 1) / block_dim) + 1, ((big_height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+            dim3 Block(block_dim, block_dim);
+
+            //Launch the kernel and pass device matricies and size information
+            bicubicInterpolation_GreyCon_Kernel << < Grid, Block >> > (big_img_bic_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
+            nearestNeighbors_GreyCon_Kernel << < Grid, Block >> > (big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
+            Artifact_Grey_Kernel << < Grid, Block >> > (big_artifact_map_cuda, big_img_nn_grey_cuda, big_img_bic_grey_cuda, big_width, big_height);
+            GuassianBlur_Threshold_Map_Kernel << < Grid, Block >> > (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
+            Image_Fusion_Kernel << < Grid, Block >> > (big_img_fused_cuda, big_img_nn_cuda, big_img_bic_cuda, big_artifact_blurred_map_cuda, big_width, big_height);
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(big_img_fused, big_img_fused_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            auto dur = end - start;
+
+            processing_time += std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+
+            free(img);                          free(big_img_nn);               free(big_img_bic);              free(big_img_fused);
+
+            cudaFree(img_cuda);                         cudaFree(big_img_nn_cuda);          cudaFree(big_img_bic_cuda);
+            cudaFree(big_img_nn_grey_cuda);             cudaFree(big_img_bic_grey_cuda);    cudaFree(big_artifact_map_cuda);
+            cudaFree(big_artifact_blurred_map_cuda);    cudaFree(big_img_fused_cuda);
+
+            count++;
+            current_img++;
+
+            if (current_img > max_image)
+                current_img = 1;
+        }
+
+        free(width);    free(height);
+    }
+
+    catch (const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    cudaDeviceReset();
+    return 0;
+}
+#endif

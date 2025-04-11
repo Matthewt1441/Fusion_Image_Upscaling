@@ -16,6 +16,10 @@
 
 #include <chrono>
 
+#include "util.cuh"
+
+#ifdef USE_SDL
+
 #include <SDL.h>
 #undef main
 #include <SDL_ttf.h>
@@ -255,6 +259,154 @@ int serialExecution()
     return 0;
 }
 
+#else 
+
+int serialExecution()
+{
+    try
+    {
+        int* width = (int*)malloc(sizeof(int));
+        int* height = (int*)malloc(sizeof(int));
+        unsigned char* img;
+
+        int big_width;
+        int big_height;
+        int window_size = 8;
+
+        int scale = 2;
+
+        bool RUNNING = true;
+
+        int const_width;
+        int const_height;
+
+        float diff = 0;
+
+        int big_pixel_count = 0;
+
+        unsigned char* hr_img_nn;
+        unsigned char* hr_img_nn_grey;
+        unsigned char* hr_img_bic;
+        unsigned char* hr_img_bic_grey;
+        unsigned char* hr_img_diff_grey;
+        unsigned char* hr_img_ssim_grey;
+        unsigned char* hr_img_artifact_grey;
+        unsigned char* hr_img_artifact_blurred_grey;
+        unsigned char* hr_img_fused;
+        float* hr_diff_map;
+        float* hr_ssim_map;
+        float* hr_artifact_map;
+        float* hr_artifact_blurred_map;
+
+        char fps_str[50];
+        char file_name[50];
+        int count = 0;
+
+
+        double frame_cap = 10;
+        sprintf(fps_str, "FPS:%.*f", 3, 0.0);
+
+        int max_image = 200;
+        int current_img = 60;
+
+        double processing_time = 0;
+
+        while (RUNNING)
+        {
+            if (count == max_image)
+            {
+                diff = 1000 * count / processing_time;
+                printf("FPS:%.*f\n", 3, diff);
+
+                count = 0;
+                processing_time = 0;
+                RUNNING = false;
+            }
+
+            sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+
+            img = (unsigned char*)readPPM(file_name, width, height);
+
+            auto start = std::chrono::high_resolution_clock::now();
+
+            const_width = *width;
+            const_height = *height;
+
+            big_width = const_width * scale; big_height = const_height * scale;
+            big_pixel_count = big_width * big_height;
+
+            //Pointers for each major step
+            hr_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+            hr_img_nn_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+            hr_img_bic_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+            hr_img_diff_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image saving
+            hr_img_artifact_blurred_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);     //Convert to 0-255 unsigned char for image savin
+            hr_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);     //Convert to 0-255 unsigned char for image saving
+            hr_diff_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_ssim_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+            hr_artifact_blurred_map = (float*)malloc(sizeof(float) * big_pixel_count);                     //Use for artifact detection
+
+            nearestNeighbors(hr_img_nn, big_width, big_height, img, const_width, const_height, scale);
+            RGB2Greyscale(hr_img_nn_grey, hr_img_nn, big_width, big_height);
+            bicubicInterpolation(hr_img_bic, big_width, big_height, img, const_width, const_height, scale);
+            RGB2Greyscale(hr_img_bic_grey, hr_img_bic, big_width, big_height);
+
+            ABS_Difference_Grey(hr_diff_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            SSIM_Grey(hr_ssim_map, hr_img_nn_grey, hr_img_bic_grey, big_width, big_height);
+            MapMul(hr_artifact_map, hr_diff_map, hr_ssim_map, big_width, big_height);
+
+            GuassianBlur_Map(hr_artifact_blurred_map, hr_artifact_map, big_width, big_height, 3, 1.5);
+
+            MapThreshold(hr_artifact_blurred_map, 0.05, big_width, big_height);
+
+            Image_Fusion(hr_img_fused, hr_img_nn, hr_img_bic, hr_artifact_blurred_map, big_width, big_height);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            auto dur = end - start;
+
+            processing_time += std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+
+            free(img);
+
+            free(hr_img_nn);
+            free(hr_img_nn_grey);
+            free(hr_img_bic);
+            free(hr_img_bic_grey);
+            free(hr_img_diff_grey);
+            free(hr_img_ssim_grey);
+            free(hr_img_artifact_grey);
+            free(hr_img_artifact_blurred_grey);
+            free(hr_img_fused);
+
+            free(hr_diff_map);
+            free(hr_ssim_map);
+            free(hr_artifact_map);
+            free(hr_artifact_blurred_map);
+
+
+            count++;
+            current_img++;
+
+            if (current_img > max_image)
+                current_img = 1;
+        }
+
+        free(width); free(height);
+    }
+
+    catch (const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
 int Code_Testing()
 {
     unsigned char* lr_img;
@@ -266,7 +418,6 @@ int Code_Testing()
     int hr_height;
 
     float scale = 3.0;
-
 
     char file_name[50] = "./Testing_Images/image108.ppm";
 
@@ -284,13 +435,11 @@ int Code_Testing()
     unsigned char* hr_img_ssim_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
     unsigned char* hr_img_artifact_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image saving
     unsigned char* hr_img_artifact_blurred_grey = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height);     //Convert to 0-255 unsigned char for image savin
-    unsigned char* hr_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height * 3);     //Convert to 0-255 unsigned char for image saving
-    float* hr_diff_map = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
+    unsigned char* hr_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * hr_width * hr_height * 3);                 //Convert to 0-255 unsigned char for image saving
+    float* hr_diff_map = (float*)malloc(sizeof(float) * hr_width * hr_height);                                              //Use for artifact detection
     float* hr_ssim_map = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
     float* hr_artifact_map = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
     float* hr_artifact_blurred_map = (float*)malloc(sizeof(float) * hr_width * hr_height);                     //Use for artifact detection
-
-
 
     nearestNeighbors(hr_img_nn, hr_width, hr_height, lr_img, lr_width, lr_height, scale);
     RGB2Greyscale(hr_img_nn_grey, hr_img_nn, hr_width, hr_height);
@@ -347,3 +496,4 @@ int Code_Testing()
 
     return 0;
 }
+#endif
