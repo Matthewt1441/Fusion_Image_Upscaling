@@ -186,7 +186,7 @@ int sharedMemCudaOptimizedExecution()
             dim3 Grid2(((width - 1) / block_dim) + 1, ((height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
             dim3 Block(block_dim, block_dim);
 
-            dim3 Grid_Arti(((width - 1) / 8) + 1, ((height - 1) / 8) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+            dim3 Grid_Arti(((big_width - 1) / 8) + 1, ((big_height - 1) / 8) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
             dim3 Block_Arti(8, 8);
 
             dim3 BiCubic_Grid(((big_width - 1) / 8) + 1, ((big_height - 1) / 8) + 1);
