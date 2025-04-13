@@ -472,11 +472,20 @@ int sharedMemCudaOptimizedExecution()
         cudaEventSynchronize(astopEvent);
         cudaEventElapsedTime(&aelapsedTime, astartEvent, astopEvent);
         printf("Total compute time (ms) %f\n", aelapsedTime);
+        //**************** Run & Time Kernels ****************//
 
 
         //Save Images
         writePPM("./Shared_Memory_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
         writePPM("./Shared_Memory_Output/BIC.ppm", (char*)h_big_img_nn, big_width, big_height);
+
+        //Compare with Serial Image
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/NN.ppm", &width, &height);
+        h_temp_output_img2 = (unsigned char*)readPPM("./Serial_Output/BIC.ppm", &width, &height);
+        Image_Compare(h_temp_output_img1, h_big_img_nn, big_width, big_height);
+        Image_Compare(h_temp_output_img2, h_big_img_nn, big_width, big_height);
+
+
 
         //Free Host Memory
         free(h_img);
@@ -500,7 +509,7 @@ int sharedMemCudaOptimizedExecution()
         cudaFree(d_temp_output_img1);
         cudaFree(d_temp_output_img2);
 
-        //**************** Run & Time Kernels ****************//
+        
 
 #if 0
         while (RUNNING)

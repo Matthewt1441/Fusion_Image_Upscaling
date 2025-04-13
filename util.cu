@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "util.cuh"
+#include <stdio.h>
 
 //Initial Naive approach
 __global__ void rgbToRGBA_Kernel(RGBA_t* d_RGBA_img, unsigned char* d_rgb_img, int numpixels)
@@ -71,3 +72,37 @@ __global__ void rgbaToRGB_Kernel(unsigned char* d_rgb_img, RGBA_t* d_rgba_img, i
     }
 }
 
+void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height)
+{
+    int idx = 0;
+    int y;
+    int x;
+    bool pass = true;
+    for( y = 0; y < height; y++) 
+    {
+        for(x = 0; x < width; x++)
+        {
+            idx = y * width + x;
+
+            //                 R                                   G                                   B
+            if((img1[idx + 0] != img2[idx + 0]) || (img1[idx + 1] != img2[idx + 1]) || (img1[idx + 2] != img2[idx + 2]))
+            {
+                pass = false;
+                goto LOOP_EXIT;
+            }
+
+
+        }
+    }
+
+LOOP_EXIT:
+    if(!pass)
+    {
+        printf("Images do not match at pixel X: %d, Y: %d\n", x, y);
+    }
+    else
+    {
+        printf("Images match!\n");
+    }
+
+}

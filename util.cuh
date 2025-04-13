@@ -11,3 +11,5 @@ typedef struct __align__(4) { // Or alignas(4) in C++11
 
 __global__ void rgbToRGBA_Kernel(RGBA_t* d_RGBA_img, unsigned char* d_rgb_img, int numpixels);
 __global__ void rgbaToRGB_Kernel(unsigned char* d_rgb_img, RGBA_t* d_rgba_img, int numpixels);
+
+void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height);

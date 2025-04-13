@@ -263,57 +263,125 @@ int serialExecution()
 
 int serialExecution()
 {
+
+    int width;
+    int height;
+
+    int big_width;
+    int big_height;
+    int big_pixel_count;
+
+    //Host Array Pointers, these should always be unsigned char
+    unsigned char*  h_img;                              //Original Small Input Image
+    unsigned char*  h_big_img_nn;                       //Upscaled Nearest Neighbor Image
+    unsigned char*  h_big_img_nn_grey;                  //Upscaled Greyscale Nearest Neighbor Image
+    unsigned char*  h_big_img_bic;                      //Upscaled Bicubic Image
+    unsigned char*  h_big_img_bic_grey;                 //Upscaled Greyscale Bicubic Image
+    unsigned char*  h_big_img_DIFF_grey;                //Upscaled Greyscale Difference Image
+    unsigned char*  h_big_img_SSIM_grey;                //Upscaled Greyscale SSIM Image
+    unsigned char*  h_big_img_ARTIFACT_grey;            //Upscaled Greyscale ARTIFACT Image
+    unsigned char*  h_big_img_BLURRED_ARTIFACT_grey;    //Upscaled Greyscale BLURRED ARTIFACT Image
+    unsigned char*  h_big_img_fused;                    //Upscaled Fused Image
+    float*          h_diff_map;                         //Difference Map
+    float*          h_ssim_map;                         //SSIM Map
+    float*          h_artifact_map;                     //Artifact Map
+    float*          h_blurred_artifact_map;             //Blurred Artifact Map
+
+    //Kernel Parameters
+    int scale = 2;
+    bool RUNNING = true;
+    bool firstImg = true;
+
+    //Lets start off with timing one image
     try
     {
-        int* width = (int*)malloc(sizeof(int));
-        int* height = (int*)malloc(sizeof(int));
-        unsigned char* img;
-
-        int big_width;
-        int big_height;
-        int window_size = 8;
-
-        int scale = 2;
-
-        bool RUNNING = true;
-
-        int const_width;
-        int const_height;
-
-        float diff = 0;
-
-        int big_pixel_count = 0;
-
-        unsigned char* hr_img_nn;
-        unsigned char* hr_img_nn_grey;
-        unsigned char* hr_img_bic;
-        unsigned char* hr_img_bic_grey;
-        unsigned char* hr_img_diff_grey;
-        unsigned char* hr_img_ssim_grey;
-        unsigned char* hr_img_artifact_grey;
-        unsigned char* hr_img_artifact_blurred_grey;
-        unsigned char* hr_img_fused;
-        float* hr_diff_map;
-        float* hr_ssim_map;
-        float* hr_artifact_map;
-        float* hr_artifact_blurred_map;
-
+        //***** Temp *****//
         char fps_str[50];
         char file_name[50];
         int count = 0;
-
 
         double frame_cap = 10;
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
-        int current_img = 60;
+        int current_img = 1;
 
+        //***** Temp *****//
+
+        //Read in first image initially to get input width and height.
+        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        h_img = (unsigned char*)readPPM(file_name, &width, &height);
+        free(h_img);
+
+        //Define big image width and height
+        big_width = width * scale; big_height = height * scale;
+        big_pixel_count = big_width * big_height;
+
+        //******** Malloc Host Images ********//
+        h_big_img_nn                    = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_big_img_nn_grey               = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_bic                   = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_big_img_bic_grey              = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_DIFF_grey             = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);                 
+        h_big_img_SSIM_grey             = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_ARTIFACT_grey         = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_BLURRED_ARTIFACT_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_fused                 = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_diff_map                      = (float*)malloc(sizeof(float) * big_pixel_count);
+        h_ssim_map                      = (float*)malloc(sizeof(float) * big_pixel_count);
+        h_artifact_map                  = (float*)malloc(sizeof(float) * big_pixel_count);
+        h_blurred_artifact_map          = (float*)malloc(sizeof(float) * big_pixel_count);
+        //******** Malloc Host Images ********//
+
+         //Variables for timing
         double processing_time = 0;
 
-        //Lets start off with timing one image
+        //**************** Run & Time Kernels ****************//
+        auto start = std::chrono::high_resolution_clock::now();
+
+        //Load Input Image
+        h_img = (unsigned char*)readPPM(file_name, &width, &height);
+
+        nearestNeighbors(h_big_img_nn, big_width, big_height, h_img, width, height, scale);
+        RGB2Greyscale(h_big_img_nn_grey, h_big_img_nn, big_width, big_height);
+        bicubicInterpolation(h_big_img_bic, big_width, big_height, h_img, width, height, scale);
+        RGB2Greyscale(h_big_img_bic_grey, h_big_img_bic, big_width, big_height);
+
+        ABS_Difference_Grey(h_diff_map, h_big_img_nn_grey, h_big_img_bic_grey, big_width, big_height);
+        SSIM_Grey(h_ssim_map, h_big_img_nn_grey, h_big_img_bic_grey, big_width, big_height);
+        MapMul(h_artifact_map, h_diff_map, h_ssim_map, big_width, big_height);
+
+        GuassianBlur_Map(h_blurred_artifact_map, h_artifact_map, big_width, big_height, 3, 1.5);
+
+        MapThreshold(h_blurred_artifact_map, 0.05, big_width, big_height);
+
+        Image_Fusion(h_big_img_fused, h_big_img_nn, h_big_img_bic, h_blurred_artifact_map, big_width, big_height);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto dur = end - start;
+        processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+        printf("Total compute time (ms) %f\n", processing_time);
+        //**************** Run & Time Kernels ****************//
+
+        //Save Images
+        writePPM("./Serial_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
+        writePPM("./Serial_Output/BIC.ppm", (char*)h_big_img_nn, big_width, big_height);
 
 
+        //Free Host Memory
+        free(h_big_img_nn);             
+        free(h_big_img_nn_grey);
+        free(h_big_img_bic);            
+        free(h_big_img_bic_grey);
+        free(h_big_img_DIFF_grey);           
+        free(h_big_img_SSIM_grey);          
+        free(h_big_img_ARTIFACT_grey);        
+        free(h_big_img_BLURRED_ARTIFACT_grey);
+        free(h_big_img_fused);
+        free(h_diff_map);              
+        free(h_ssim_map);                   
+        free(h_artifact_map);                 
+        free(h_blurred_artifact_map);
 
 
 #if 0
@@ -402,7 +470,7 @@ int serialExecution()
         }
 #endif
 
-        free(width); free(height);
+        //free(width); free(height);
     }
 
     catch (const std::exception& e)
