@@ -11,7 +11,7 @@
 #include <fstream>
 #include <string>
 
-//#include "naive_cuda.cuh"
+#include "naive_cuda.cuh"
 #include "basic_optimization_cuda.cuh"
 //#include "shared_memory_cuda.cuh"
 #include "ppm_image.cuh"
@@ -318,7 +318,7 @@ int sharedMemCudaOptimizedExecution()
     unsigned char*      d_big_img_nn_grey;                  //Upscaled Greyscale Nearest Neighbor Image
     unsigned char*      d_big_img_bic_grey;                 //Upscaled Greyscale Bicubic Image
     float*              d_big_artifact_map;                 //Upscaled Artifact Map for image fusion
-    float*              d_big_artifact_blurred_map;         //Upscaled Blurred Artifact Map for image fusion
+    float*              d_big_blurred_artifact_map;         //Upscaled Blurred Artifact Map for image fusion
     RGBA_t*             d_big_rgba_img_fused;               //Upscaled Fused Image w/ 32bit-pixel format
     unsigned char*      d_big_img_fused;                    //Upscaled Fused Image  
     //Temporary Images for debug
@@ -400,7 +400,7 @@ int sharedMemCudaOptimizedExecution()
         //Maps for Fusion
         if (cudaMalloc((void**)&d_big_artifact_map, big_width * big_height * sizeof(float)) != cudaSuccess)
             fprintf(stderr, "Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-        if (cudaMalloc((void**)&d_big_artifact_blurred_map, big_width * big_height * sizeof(float)) != cudaSuccess)
+        if (cudaMalloc((void**)&d_big_blurred_artifact_map, big_width * big_height * sizeof(float)) != cudaSuccess)
             fprintf(stderr, "Blured Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
         //Final Image and RGBA Image
@@ -459,14 +459,15 @@ int sharedMemCudaOptimizedExecution()
         //Upscale image and convert to greyscale using Nearest Neighbor method
         nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
 
+        Artifact_Grey_Kernel <<< Grid, Block >>>                (d_big_artifact_map         , d_big_img_nn_grey             , d_big_img_bic_grey        , big_width, big_height);
+        GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
+        Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
+
         //Convert Upscaled image back to RGB
-        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img1, d_big_img_nn, big_width * big_height);
-        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img2, d_big_img_bic, big_width * big_height);
-       
+        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_big_img_fused, d_big_rgba_img_fused, big_width * big_height);
 
         //Send Device Images to Host
-        cudaMemcpy(h_big_img_nn, d_temp_output_img1, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_big_img_bic, d_temp_output_img2, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
         cudaEventRecord(astopEvent, 0);
         cudaEventSynchronize(astopEvent);
@@ -474,26 +475,45 @@ int sharedMemCudaOptimizedExecution()
         printf("Total compute time (ms) %f\n", aelapsedTime);
         //**************** Run & Time Kernels ****************//
 
+        //Convert Intermidiate Images to RGB and send them to the host
+        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img1, d_big_img_nn, big_width * big_height);
+        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img2, d_big_img_bic, big_width * big_height);
+
+        //Send Device Images to Host
+        cudaMemcpy(h_big_img_nn, d_temp_output_img1, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_big_img_bic, d_temp_output_img2, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+
+        //Convert Maps to Greyscale
+        //Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 255);           //Diff values are already between 0-255
+        //Map2Greyscale(hr_img_ssim_grey, hr_ssim_map, hr_width, hr_height, 255);         //SSIM values are between 0-1 so scale up to 255
+        //Map2Greyscale(hr_img_artifact_grey, hr_artifact_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+        //Map2Greyscale(hr_img_artifact_blurred_grey, hr_artifact_blurred_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+
 
         //Save Images
         writePPM("./Shared_Memory_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
-        writePPM("./Shared_Memory_Output/BIC.ppm", (char*)h_big_img_nn, big_width, big_height);
+        writePPM("./Shared_Memory_Output/BIC.ppm", (char*)h_big_img_bic, big_width, big_height);
+        writePPM("./Shared_Memory_Output/FUSED.ppm", (char*)h_big_img_fused, big_width, big_height);
+
 
         //Compare with Serial Image
         h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/NN.ppm", &width, &height);
         h_temp_output_img2 = (unsigned char*)readPPM("./Serial_Output/BIC.ppm", &width, &height);
         Image_Compare(h_temp_output_img1, h_big_img_nn, big_width, big_height);
-        Image_Compare(h_temp_output_img2, h_big_img_nn, big_width, big_height);
+        Image_Compare(h_temp_output_img2, h_big_img_bic, big_width, big_height);
+        free(h_temp_output_img1);
+        free(h_temp_output_img2);
 
-
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/FUSED.ppm", &width, &height);
+        Image_Compare(h_temp_output_img1, h_big_img_fused, big_width, big_height);
+        free(h_temp_output_img1);
 
         //Free Host Memory
         free(h_img);
         free(h_big_img_nn);
         free(h_big_img_bic);   
         free(h_big_img_fused);
-        free(h_temp_output_img1);
-        free(h_temp_output_img2);
 
         //Free device Memory
         cudaFree(d_img);
@@ -503,7 +523,7 @@ int sharedMemCudaOptimizedExecution()
         cudaFree(d_big_img_nn_grey);
         cudaFree(d_big_img_bic_grey);
         cudaFree(d_big_artifact_map);
-        cudaFree(d_big_artifact_blurred_map);
+        cudaFree(d_big_blurred_artifact_map);
         cudaFree(d_big_rgba_img_fused);
         cudaFree(d_big_img_fused);
         cudaFree(d_temp_output_img1);

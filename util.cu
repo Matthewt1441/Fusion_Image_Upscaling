@@ -106,3 +106,37 @@ LOOP_EXIT:
     }
 
 }
+
+void Grey_Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height)
+{
+    int idx = 0;
+    int y;
+    int x;
+    bool pass = true;
+    for( y = 0; y < height; y++) 
+    {
+        for(x = 0; x < width; x++)
+        {
+            idx = y * width + x;
+           
+            if(img1[idx] != img2[idx])
+            {
+                pass = false;
+                goto GREY_LOOP_EXIT;
+            }
+
+
+        }
+    }
+
+GREY_LOOP_EXIT:
+    if(!pass)
+    {
+        printf("Images do not match at pixel X: %d, Y: %d\n", x, y);
+    }
+    else
+    {
+        printf("Images match!\n");
+    }
+
+}

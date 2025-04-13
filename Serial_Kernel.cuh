@@ -363,9 +363,24 @@ int serialExecution()
         printf("Total compute time (ms) %f\n", processing_time);
         //**************** Run & Time Kernels ****************//
 
+        //Convert Maps to Greyscale images
+        Map2Greyscale(h_big_img_DIFF_grey               , h_diff_map                , big_width , big_height, 255); //Diff values are already between 0-255
+        Map2Greyscale(h_big_img_SSIM_grey               , h_ssim_map                , big_width , big_height, 255); //SSIM values are between 0-1 so scale up to 255
+        Map2Greyscale(h_big_img_ARTIFACT_grey           , h_artifact_map            , big_width , big_height, 255); //Artifact values should be between 0-255;
+        Map2Greyscale(h_big_img_BLURRED_ARTIFACT_grey   , h_blurred_artifact_map    , big_width , big_height, 255); //Artifact values should be between 0-255;
+
+
         //Save Images
-        writePPM("./Serial_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
-        writePPM("./Serial_Output/BIC.ppm", (char*)h_big_img_nn, big_width, big_height);
+        writePPM    ("./Serial_Output/NN.ppm"                   , (char*)h_big_img_nn                       , big_width, big_height);
+        writePPMGrey("./Serial_Output/NN_Grey.ppm"              , (char*)h_big_img_nn_grey                  , big_width, big_height);
+        writePPM    ("./Serial_Output/BIC.ppm"                  , (char*)h_big_img_bic                      , big_width, big_height);
+        writePPMGrey("./Serial_Output/BIC_Grey.ppm"             , (char*)h_big_img_bic_grey                 , big_width, big_height);
+        writePPMGrey("./Serial_Output/DIFF_Grey.ppm"            , (char*)h_big_img_DIFF_grey                , big_width, big_height);
+        writePPMGrey("./Serial_Output/SSIM_Grey.ppm"            , (char*)h_big_img_SSIM_grey                , big_width, big_height);
+        writePPMGrey("./Serial_Output/ARTIFACT_Grey.ppm"        , (char*)h_big_img_ARTIFACT_grey            , big_width, big_height);
+        writePPMGrey("./Serial_Output/BLURRED_ARTIFACT_Grey.ppm", (char*)h_big_img_BLURRED_ARTIFACT_grey    , big_width, big_height);
+        writePPM    ("./Serial_Output/FUSED.ppm"                , (char*)h_big_img_fused                    , big_width, big_height);
+
 
 
         //Free Host Memory

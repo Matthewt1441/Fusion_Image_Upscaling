@@ -13,3 +13,4 @@ __global__ void rgbToRGBA_Kernel(RGBA_t* d_RGBA_img, unsigned char* d_rgb_img, i
 __global__ void rgbaToRGB_Kernel(unsigned char* d_rgb_img, RGBA_t* d_rgba_img, int numpixels);
 
 void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height);
+void Grey_Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height);
