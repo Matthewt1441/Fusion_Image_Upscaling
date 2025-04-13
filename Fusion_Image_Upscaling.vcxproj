@@ -20,7 +20,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -86,6 +86,7 @@
     <CudaCompile Include="ppm_image.cu" />
     <CudaCompile Include="serial_code.cu" />
     <CudaCompile Include="shared_memory_cuda.cu" />
+    <CudaCompile Include="util.cu" />
   </ItemGroup>
   <ItemGroup>
     <None Include="SDL2.dll" />

@@ -311,6 +311,12 @@ int serialExecution()
 
         double processing_time = 0;
 
+        //Lets start off with timing one image
+
+
+
+
+#if 0
         while (RUNNING)
         {
             if (count == max_image)
@@ -394,6 +400,7 @@ int serialExecution()
             if (current_img > max_image)
                 current_img = 1;
         }
+#endif
 
         free(width); free(height);
     }

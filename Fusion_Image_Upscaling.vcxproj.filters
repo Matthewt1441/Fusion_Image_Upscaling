@@ -7,6 +7,7 @@
     <CudaCompile Include="ppm_image.cu" />
     <CudaCompile Include="serial_code.cu" />
     <CudaCompile Include="shared_memory_cuda.cu" />
+    <CudaCompile Include="util.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Basic_CUDA_Optimize_Kernel.cuh" />
