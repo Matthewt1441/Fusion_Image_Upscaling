@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "util.cuh"
+#include <stdio.h>
 
 const int CHN_NUM = 3;
 

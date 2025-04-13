@@ -1,6 +1,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "util.cuh"
+#include <stdio.h>
 
 const int CHN_NUM = 3;
 
@@ -142,7 +143,7 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
     //Upscaled Image Coordinates (Output)
     int Row = blockIdx.y * blockDim.y + threadIdx.y;
     int Col = blockIdx.x * blockDim.x + threadIdx.x;
-
+    
     __shared__ float window_r[4][4];
     __shared__ float window_g[4][4];
     __shared__ float window_b[4][4];
@@ -159,9 +160,27 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
     {
         rgba_val = img_data[input_row * width + input_col];
 
-        window_r[input_row][input_col] = (float)rgba_val.r;
-        window_g[input_row][input_col] = (float)rgba_val.g;
-        window_b[input_row][input_col] = (float)rgba_val.b;
+        window_r[threadIdx.y][threadIdx.x] = (float)rgba_val.r;
+        window_g[threadIdx.y][threadIdx.x] = (float)rgba_val.g;
+        window_b[threadIdx.y][threadIdx.x] = (float)rgba_val.b;
+    }
+    __syncthreads();
+
+    if(blockIdx.x == 0 && blockIdx.y == 0)
+    {
+        if(threadIdx.x == 2 && threadIdx.y == 0)
+        {
+            printf("Shared Memory Block %d,%d\n", blockIdx.y, blockIdx.x);
+            printf("%f, %f\n", (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            for(int y = 0; y < 4; y++)
+            {
+                for(int x = 0; x < 4; x++)
+                {
+                    printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[y][x], window_g[y][x], window_b[y][x]);
+                }
+                printf("\n");
+            }
+        }
     }
     __syncthreads();
 

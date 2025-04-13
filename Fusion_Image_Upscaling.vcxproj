@@ -82,7 +82,7 @@
   <ItemGroup>
     <CudaCompile Include="basic_optimization_cuda.cu" />
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="navie_cuda.cu" />
+    <CudaCompile Include="naive_cuda.cu" />
     <CudaCompile Include="ppm_image.cu" />
     <CudaCompile Include="serial_code.cu" />
     <CudaCompile Include="shared_memory_cuda.cu" />

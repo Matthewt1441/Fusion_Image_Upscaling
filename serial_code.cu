@@ -319,6 +319,7 @@ float cubicInterpolate(float p[4], float x)
     return 0.0;
 }
 
+//                               y  x
 float bicubicInterpolate(float p[4][4], float x, float y) 
 {
     float arr[4];
@@ -352,33 +353,44 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
         }
     }
 
+    //For y within Big image size
     for (int y = 0; y < f * h; y++)
     {
+        //For x within big image size
         for (int x = 0; x < f * w; x++)
         {
-            if ((y / f + 4 < h) && (x / f + 4 < w))
+
+            //Check if y & x divided by the scale is within small image size & not at the edge
+            if ((y / f + 3  < h) && (x / f + 3 < w))
             {
-                for (int l = 0; l < 4; l++)
+                //4x4 window loop
+                for (int l = 0; l < 4; l++) //Y
                 {
-                    for (int k = 0; k < 4; k++)
+                    //4x4 window loop
+                    for (int k = 0; k < 4; k++) //X
                     {
-                        if ((y / f + l < h) && (x / f + k < w))
-                        {
-                            sample_x = x / f + k;
-                            sample_y = y / f + l;
+                        ////This check is not needed as its already done above
+                        //if ((y / f + l < h) && (x / f + k < w))
+                        //{
+                            sample_x = (x / (4*f))*4 + k;
+                            sample_y = (y / (4*f))*4 + l;
 
-                            if (sample_x > 0)
-                                sample_x-=1;
+                            //if (sample_x > 0)
+                            //    sample_x-=1;
 
-                            if (sample_y > 0)
-                                sample_y-=1;
+                            //if (sample_y > 0)
+                            //    sample_y-=1;
 
                             window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
                             window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
                             window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
-                        }
+                        //}
                     }
                 }
+
+                //float temp1 = bicubicInterpolate(window_r, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+                //float temp2 = bicubicInterpolate(window_g, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+                //float temp3 = bicubicInterpolate(window_b, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
 
                 float temp1 = bicubicInterpolate(window_r, (float)(y % f) / f, (float)(x % f) / f);
                 float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);

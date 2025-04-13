@@ -13,7 +13,7 @@
 
 #include "naive_cuda.cuh"
 #include "basic_optimization_cuda.cuh"
-//#include "shared_memory_cuda.cuh"
+#include "shared_memory_cuda.cuh"
 #include "ppm_image.cuh"
 #include "util.cuh"
 
@@ -454,7 +454,9 @@ int sharedMemCudaOptimizedExecution()
         rgbToRGBA_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >> > (d_RGBA_img, d_img, width * height);
 
         //Upscale image and convert to greyscale using Bicubic method
-        bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        //bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA<<<BiCubic_Grid, BiCubic_Block>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        cudaDeviceSynchronize();
 
         //Upscale image and convert to greyscale using Nearest Neighbor method
         nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
