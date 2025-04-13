@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <math.h>
+#include <stdio.h>
 
 const int CHN_NUM = 3;
 
@@ -361,7 +362,7 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
         {
 
             //Check if y & x divided by the scale is within small image size & not at the edge
-            if ((y / f + 3  < h) && (x / f + 3 < w))
+            if ((y / f + 4  < h) && (x / f + 4 < w))
             {
                 //4x4 window loop
                 for (int l = 0; l < 4; l++) //Y
@@ -372,8 +373,8 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
                         ////This check is not needed as its already done above
                         //if ((y / f + l < h) && (x / f + k < w))
                         //{
-                            sample_x = (x / (4*f))*4 + k;
-                            sample_y = (y / (4*f))*4 + l;
+                            sample_x = x / f + k;
+                            sample_y = y / f + l;
 
                             //if (sample_x > 0)
                             //    sample_x-=1;
@@ -391,6 +392,19 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
                 //float temp1 = bicubicInterpolate(window_r, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
                 //float temp2 = bicubicInterpolate(window_g, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
                 //float temp3 = bicubicInterpolate(window_b, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+
+                if(x == 79 && y == 0)
+                {
+                    printf("Serial Window\n");
+                    for(int yy = 0; yy < 4; yy++)
+                    {
+                        for(int xx = 0; xx < 4; xx++)
+                        {
+                            printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
+                        }
+                        printf("\n");
+                    }
+                }
 
                 float temp1 = bicubicInterpolate(window_r, (float)(y % f) / f, (float)(x % f) / f);
                 float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);

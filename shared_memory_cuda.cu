@@ -141,8 +141,8 @@ __device__ float bicubicInterpolateDevice_Shared(float p[4][4], float x, float y
 __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
 {
     //Upscaled Image Coordinates (Output)
-    int Row = blockIdx.y * blockDim.y + threadIdx.y;
-    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+    int output_Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int output_Col = blockIdx.x * blockDim.x + threadIdx.x;
     
     __shared__ float window_r[4][4];
     __shared__ float window_g[4][4];
@@ -168,10 +168,11 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
 
     if(blockIdx.x == 0 && blockIdx.y == 0)
     {
-        if(threadIdx.x == 2 && threadIdx.y == 0)
+        if(threadIdx.x == 0 && threadIdx.y == 0)
+        //if(Col == 79 && Row == 0)
         {
             printf("Shared Memory Block %d,%d\n", blockIdx.y, blockIdx.x);
-            printf("%f, %f\n", (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            printf("%f, %f\n", (float)(output_Row % scale) / scale, (float)(output_Col % scale) / scale);
             for(int y = 0; y < 4; y++)
             {
                 for(int x = 0; x < 4; x++)
@@ -188,10 +189,10 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
     int sample_x = 0;
     int sample_y = 0;
 
-    if (Row < big_height && Col < big_width)
+    if (output_Row < big_height && output_Col < big_width)
     {
         //What is this checking?
-        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
+        if ((output_Row / scale + 4 < height) && (output_Col / scale + 4 < width))
         {
             //for (int l = 0; l < 4; l++)
             //{
@@ -218,21 +219,21 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
             //    }
             //}
 
-            rgba_val.r = (unsigned char)bicubicInterpolateDevice_Shared(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            rgba_val.g = (unsigned char)bicubicInterpolateDevice_Shared(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            rgba_val.b = (unsigned char)bicubicInterpolateDevice_Shared(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
+            rgba_val.r = (unsigned char)bicubicInterpolateDevice_Shared(window_r, (float)(output_Row % scale) / scale, (float)(output_Col % scale) / scale);
+            rgba_val.g = (unsigned char)bicubicInterpolateDevice_Shared(window_g, (float)(output_Row % scale) / scale, (float)(output_Col % scale) / scale);
+            rgba_val.b = (unsigned char)bicubicInterpolateDevice_Shared(window_b, (float)(output_Row % scale) / scale, (float)(output_Col % scale) / scale);
 
-            big_img_data[Row * big_width + Col] = rgba_val;
+            big_img_data[output_Row * big_width + output_Col] = rgba_val;
 
-            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+            grey_big_img_data[output_Row * big_width + output_Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
         }
         else
         {
-            rgba_val = img_data[(Row / scale) * width + (Col / scale)];
+            rgba_val = img_data[(output_Row / scale) * width + (output_Col / scale)];
 
-            big_img_data[Row * big_width + Col] = rgba_val;
+            big_img_data[output_Row * big_width + output_Col] = rgba_val;
 
-            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+            grey_big_img_data[output_Row * big_width + output_Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
         }
     }
 

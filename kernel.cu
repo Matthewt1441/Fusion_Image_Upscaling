@@ -11,9 +11,9 @@
 
 int main()
 {
-    return serialExecution();
+    serialExecution();
     //return naiveCudaExecution();
     //return Code_Testing();
     //return basicCudaOptimizedExecution();
-    //return sharedMemCudaOptimizedExecution();
+    return sharedMemCudaOptimizedExecution();
 }
