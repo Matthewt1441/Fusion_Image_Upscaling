@@ -233,7 +233,7 @@ int basicCudaOptimizedExecution()
 
             free(img);                          free(big_img_nn);               free(big_img_bic);              free(big_img_fused);
 
-            cudaFree(img_cuda);                         cudaFree(big_img_nn_cuda);          cudaFree(big_img_bic_cuda);     
+            cudaFree(img_cuda);                         cudaFree(big_img_nn_cuda);          cudaFree(big_img_bic_cuda);
             cudaFree(big_img_nn_grey_cuda);             cudaFree(big_img_bic_grey_cuda);    cudaFree(big_artifact_map_cuda);
             cudaFree(big_artifact_blurred_map_cuda);    cudaFree(big_img_fused_cuda);
 
@@ -260,61 +260,64 @@ int basicCudaOptimizedExecution()
     cudaDeviceReset();
     return 0;
 }
-
 #else
 int basicCudaOptimizedExecution()
 {
-    int* width;
-    int* height;
-
-    int const_width;
-    int const_height;
+    int width;
+    int height;
 
     int big_width;
     int big_height;
+    int big_pixel_count;
 
-    float diff;
-
-    //Host Array Pointers
-    unsigned char* img;
-    unsigned char* big_img_nn;
-    unsigned char* big_img_bic;
-    unsigned char* big_img_fused;
+    //Host Array Pointers, these should always be unsigned char
+    unsigned char* h_img;                               //Original Small Input Image
+    unsigned char* h_big_img_nn;                        //Upscaled Nearest Neighbor Image
+    unsigned char* h_big_img_bic;                       //Upscaled Bicubic Image
+    unsigned char* h_big_img_fused;                     //Upscaled Fused Image
+    //Temporary Images for debug
+    unsigned char* h_temp_output_img1;
+    unsigned char* h_temp_output_img2;
 
     //Device Array Pointers
-    unsigned char* img_cuda;
-    unsigned char* big_img_nn_cuda;
-    unsigned char* big_img_bic_cuda;
-    unsigned char* big_img_nn_grey_cuda;
-    unsigned char* big_img_bic_grey_cuda;
+    unsigned char* d_img;                               //Original Small Input Image
+    unsigned char* d_RGBA_img;                          //Original Small Input Image w/ 32bit-pixel format
+    unsigned char* d_big_img_nn;                        //Upscaled Nearest Neighbor Image w/ 32bit-pixel format
+    unsigned char* d_big_img_bic;                       //Upscaled Bicubic Image w/ 32bit-pixel format
+    unsigned char* d_big_img_nn_grey;                   //Upscaled Greyscale Nearest Neighbor Image
+    unsigned char* d_big_img_bic_grey;                  //Upscaled Greyscale Bicubic Image
+    float* d_big_artifact_map;                          //Upscaled Artifact Map for image fusion
+    float* d_big_blurred_artifact_map;                  //Upscaled Blurred Artifact Map for image fusion
+    unsigned char* d_big_rgba_img_fused;                //Upscaled Fused Image w/ 32bit-pixel format
+    unsigned char* d_big_img_fused;                     //Upscaled Fused Image  
 
-    float* big_artifact_map_cuda;
-    float* big_artifact_blurred_map_cuda;
+    //Temporary Images for debug
+    unsigned char* d_temp_output_img1;
+    unsigned char* d_temp_output_img2;
 
-    unsigned char* big_img_fused_cuda;
-
-    int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
-    int window_size = 8;
+    //Kernel Parameters
     int scale = 2;
-
     bool RUNNING = true;
     bool firstImg = true;
 
+    //Not sure these are needed will keep for now
+    int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
+    int window_size = 8;
+
+
+    //Lets start off with timing one image
     try
     {
-        width = (int*)malloc(sizeof(int));
-        height = (int*)malloc(sizeof(int));
-
+        //Check that CUDA-capable GPU is installed
         cudaError_t cudaStatus;
-
         cudaStatus = cudaSetDevice(0);
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
         }
 
+        //***** Temp *****//
         char fps_str[50];
         char file_name[50];
-
         int count = 0;
 
         double frame_cap = 10;
@@ -324,7 +327,172 @@ int basicCudaOptimizedExecution()
         int current_img = 1;
 
         double processing_time = 0;
+        //***** Temp *****//
 
+        //Read in first image initially to get input width and height.
+        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        h_img = (unsigned char*)readPPM(file_name, &width, &height);
+        free(h_img);
+
+        //Define big image width and height
+        big_width = width * scale; big_height = height * scale;
+        big_pixel_count = big_width * big_height;
+
+        //******** Malloc Host Images ********//
+        h_big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        h_big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        h_big_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        h_temp_output_img1 = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        h_temp_output_img2 = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        //******** Malloc Host Images ********//
+
+        //******** Malloc Device Images ********//
+
+        //Original Image & RGBA Image
+        if (cudaMalloc((void**)&d_img, width * height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "Original Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        //if (cudaMalloc((void**)&d_RGBA_img, width * height * sizeof(unsigned char) * 3) != cudaSuccess)
+        //    fprintf(stderr, "RGBA Original Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //Upscaled Images
+        if (cudaMalloc((void**)&d_big_img_nn, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "NN Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        if (cudaMalloc((void**)&d_big_img_bic, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //Grey Versions for Upscaled Images
+        if (cudaMalloc((void**)&d_big_img_nn_grey, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
+            fprintf(stderr, "NN Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        if (cudaMalloc((void**)&d_big_img_bic_grey, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
+            fprintf(stderr, "BIC Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //Maps for Fusion
+        if (cudaMalloc((void**)&d_big_artifact_map, big_width * big_height * sizeof(float)) != cudaSuccess)
+            fprintf(stderr, "Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        if (cudaMalloc((void**)&d_big_blurred_artifact_map, big_width * big_height * sizeof(float)) != cudaSuccess)
+            fprintf(stderr, "Blured Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //Final Image and RGBA Image
+        if (cudaMalloc((void**)&d_big_img_fused, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        if (cudaMalloc((void**)&d_big_rgba_img_fused, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //Temporary Output Images for comparison and debug
+        if (cudaMalloc((void**)&d_temp_output_img1, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+        if (cudaMalloc((void**)&d_temp_output_img2, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
+            fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+
+        //**************** Setup Kernel ****************//
+        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+
+        dim3 Grid(((big_width - 1) / block_dim) + 1, ((big_height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+
+        dim3 Grid2(((width - 1) / block_dim) + 1, ((height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+        dim3 Block(block_dim, block_dim);
+
+        dim3 Grid_Arti(((width - 1) / 8) + 1, ((height - 1) / 8) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+        dim3 Block_Arti(8, 8);
+
+        dim3 BiCubic_Grid(((big_width - 1) / 8) + 1, ((big_height - 1) / 8) + 1);
+        dim3 BiCubic_Block(8, 8);
+
+        dim3 GRID_RGB_Convert(ceil((big_width * big_height) / 256.0));
+        dim3 BLOCK_RGB_Convert(256);
+        //**************** Setup Kernel ****************//
+
+        //Variables for timing
+        cudaEvent_t astartEvent, astopEvent;
+        float aelapsedTime;
+        cudaEventCreate(&astartEvent);
+        cudaEventCreate(&astopEvent);
+
+        //**************** Run & Time Kernels ****************//
+        cudaEventRecord(astartEvent, 0);
+
+        //Load Input Image
+        h_img = (unsigned char*)readPPM(file_name, &width, &height);
+
+        //Copy Input Image to Device
+        cudaMemcpy(d_img, h_img, sizeof(unsigned char) * width * height * 3, cudaMemcpyHostToDevice);
+        cudaDeviceSynchronize();
+
+        //Upscale image and convert to greyscale using Bicubic method
+        bicubicInterpolation_GreyCon_Kernel << < Grid, Block >> > (d_big_img_bic, d_big_img_bic_grey, d_img, big_width, big_height, width, height, scale);
+
+        //Upscale image and convert to greyscale using Nearest Neighbor method
+        nearestNeighbors_GreyCon_Kernel << < Grid, Block >> > (d_big_img_nn, d_big_img_nn_grey, d_img, big_width, big_height, width, height, scale);
+
+        Artifact_Grey_Kernel << < Grid, Block >> > (d_big_artifact_map, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
+        GuassianBlur_Threshold_Map_Kernel << < Grid, Block >> > (d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 3, 1.5, 0.05);
+        Image_Fusion_Kernel << < Grid, Block >> > (d_big_img_fused, d_big_img_nn, d_big_img_bic, d_big_blurred_artifact_map, big_width, big_height);
+
+        //Send Device Images to Host
+        cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+
+        cudaDeviceSynchronize();
+
+        cudaEventRecord(astopEvent, 0);
+        cudaEventSynchronize(astopEvent);
+        cudaEventElapsedTime(&aelapsedTime, astartEvent, astopEvent);
+        printf("Total compute time (ms) %f\n", aelapsedTime);
+        //**************** Run & Time Kernels ****************//
+
+        //Send Device Images to Host
+        cudaMemcpy(h_big_img_nn, d_big_img_nn, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_big_img_bic, d_big_img_bic, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+
+        //Convert Maps to Greyscale
+        //Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 255);           //Diff values are already between 0-255
+        //Map2Greyscale(hr_img_ssim_grey, hr_ssim_map, hr_width, hr_height, 255);         //SSIM values are between 0-1 so scale up to 255
+        //Map2Greyscale(hr_img_artifact_grey, hr_artifact_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+        //Map2Greyscale(hr_img_artifact_blurred_grey, hr_artifact_blurred_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
+
+
+        //Save Images
+        writePPM("./Basic_CUDA_Optimized_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
+        writePPM("./Basic_CUDA_Optimized_Output/BIC.ppm", (char*)h_big_img_bic, big_width, big_height);
+        writePPM("./Basic_CUDA_Optimized_Output/FUSED.ppm", (char*)h_big_img_fused, big_width, big_height);
+
+
+        //Compare with Serial Image
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/NN.ppm", &width, &height);
+        h_temp_output_img2 = (unsigned char*)readPPM("./Serial_Output/BIC.ppm", &width, &height);
+        Image_Compare(h_temp_output_img1, h_big_img_nn, big_width, big_height);
+        Image_Compare(h_temp_output_img2, h_big_img_bic, big_width, big_height);
+        free(h_temp_output_img1);
+        free(h_temp_output_img2);
+
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/FUSED.ppm", &width, &height);
+        Image_Compare(h_temp_output_img1, h_big_img_fused, big_width, big_height);
+        free(h_temp_output_img1);
+
+        //Free Host Memory
+        free(h_img);
+        free(h_big_img_nn);
+        free(h_big_img_bic);
+        free(h_big_img_fused);
+
+        //Free device Memory
+        cudaFree(d_img);
+        //cudaFree(d_RGBA_img);
+        cudaFree(d_big_img_nn);
+        cudaFree(d_big_img_bic);
+        cudaFree(d_big_img_nn_grey);
+        cudaFree(d_big_img_bic_grey);
+        cudaFree(d_big_artifact_map);
+        cudaFree(d_big_blurred_artifact_map);
+        cudaFree(d_big_rgba_img_fused);
+        cudaFree(d_big_img_fused);
+        cudaFree(d_temp_output_img1);
+        cudaFree(d_temp_output_img2);
+
+
+
+#if 0
         while (RUNNING)
         {
             if (count == max_image)
@@ -339,73 +507,41 @@ int basicCudaOptimizedExecution()
 
             sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
 
-            img = (unsigned char*)readPPM(file_name, width, height);
+            h_img = (unsigned char*)readPPM(file_name, &width, &height);
 
             auto start = std::chrono::high_resolution_clock::now();
-
-            const_width = *width;
-            const_height = *height;
-
-            big_width = const_width * scale; big_height = const_height * scale;
-            big_img_nn = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            big_img_bic = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-            big_img_fused = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-
-            int big_pixel_count = big_width * big_height;
-
             cudaDeviceSynchronize();
 
-            //Original Image
-            if (cudaMalloc((void**)&img_cuda, const_width * const_height * sizeof(unsigned char) * 3) != cudaSuccess)
-                printf("Original Image Failed To Copy To Device.\n");      //Notify failure
+            cudaMemcpy(d_img, h_img, sizeof(unsigned char) * width * height * 3, cudaMemcpyHostToDevice);
+            cudaDeviceSynchronize();
 
-            //Upscaled Images
-            if (cudaMalloc((void**)&big_img_nn_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
-                fprintf(stderr, "NN Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-            if (cudaMalloc((void**)&big_img_bic_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
-                fprintf(stderr, "BIC Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
 
-            //Grey Versions for Upscaled Images
-            if (cudaMalloc((void**)&big_img_nn_grey_cuda, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
-                fprintf(stderr, "NN Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-            if (cudaMalloc((void**)&big_img_bic_grey_cuda, big_width * big_height * sizeof(unsigned char)) != cudaSuccess)
-                fprintf(stderr, "BIC Grey Big Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-            //Maps for Fusion
-            if (cudaMalloc((void**)&big_artifact_map_cuda, big_width * big_height * sizeof(float)) != cudaSuccess)
-                fprintf(stderr, "Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-            if (cudaMalloc((void**)&big_artifact_blurred_map_cuda, big_width * big_height * sizeof(float)) != cudaSuccess)
-                fprintf(stderr, "Blured Artifact Map Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-            //Final Image
-            if (cudaMalloc((void**)&big_img_fused_cuda, big_width * big_height * sizeof(unsigned char) * 3) != cudaSuccess)
-                fprintf(stderr, "Fused Image Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-            cudaMemcpy(img_cuda, img, sizeof(unsigned char) * const_width * const_height * 3, cudaMemcpyHostToDevice);
-
-            dim3 Grid(((big_width - 1) / block_dim) + 1, ((big_height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
-            dim3 Block(block_dim, block_dim);
+            //Convert original image to RGBA image
+            rgbToRGBA_Kernel << < ceil((width * height) / 256.0), 256 >> > (d_RGBA_img, d_img, width * height);
 
             //Launch the kernel and pass device matricies and size information
-            bicubicInterpolation_GreyCon_Kernel << < Grid, Block >> > (big_img_bic_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
-            nearestNeighbors_GreyCon_Kernel << < Grid, Block >> > (big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
-            Artifact_Grey_Kernel << < Grid, Block >> > (big_artifact_map_cuda, big_img_nn_grey_cuda, big_img_bic_grey_cuda, big_width, big_height);
+            bicubicInterpolation_GreyCon_Kernel_RGBA << < Grid, Block >> > (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            nearestNeighbors_shared_memory_Kernel << < Grid2, Block >> > (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+            //bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA <<<BiCubic_Grid, BiCubic_Block>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+
+            //nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel << < Grid, Block, block_dim * sizeof(unsigned char) >> >(big_img_nn_cuda, big_img_nn_grey_cuda, img_cuda, big_width, big_height, const_width, const_height, scale);
+            Artifact_Shared_Memory_Kernel << < Grid_Arti, Block_Arti, sizeof(float) * 8 * 8 >> > (big_artifact_map_cuda, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
+
+            //Artifact_Grey_Kernel <<< Grid, Block >>> (big_artifact_map_cuda, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
             GuassianBlur_Threshold_Map_Kernel << < Grid, Block >> > (big_artifact_blurred_map_cuda, big_artifact_map_cuda, big_width, big_height, 3, 1.5, 0.05);
-            Image_Fusion_Kernel << < Grid, Block >> > (big_img_fused_cuda, big_img_nn_cuda, big_img_bic_cuda, big_artifact_blurred_map_cuda, big_width, big_height);
+            Image_Fusion_Kernel_RGBA << < Grid, Block >> > (big_rgba_img_fused_cuda, d_big_img_nn, d_big_img_bic, big_artifact_blurred_map_cuda, big_width, big_height);
+
+            rgbaToRGB_Kernel << < ceil((big_width * big_height) / 256.0), 256 >> > (big_img_fused_cuda, big_rgba_img_fused_cuda, big_width * big_height);
             cudaDeviceSynchronize();
 
-            cudaMemcpy(big_img_fused, big_img_fused_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+            cudaMemcpy(h_big_img_fused, big_img_fused_cuda, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
             auto end = std::chrono::high_resolution_clock::now();
             auto dur = end - start;
 
             processing_time += std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
 
-            free(img);                          free(big_img_nn);               free(big_img_bic);              free(big_img_fused);
-
-            cudaFree(img_cuda);                         cudaFree(big_img_nn_cuda);          cudaFree(big_img_bic_cuda);
-            cudaFree(big_img_nn_grey_cuda);             cudaFree(big_img_bic_grey_cuda);    cudaFree(big_artifact_map_cuda);
-            cudaFree(big_artifact_blurred_map_cuda);    cudaFree(big_img_fused_cuda);
+            free(h_img);
 
             count++;
             current_img++;
@@ -414,7 +550,15 @@ int basicCudaOptimizedExecution()
                 current_img = 1;
         }
 
-        free(width);    free(height);
+        free(h_big_img_nn);               free(h_big_img_bic);              free(h_big_img_fused);
+
+        cudaFree(d_img);                         cudaFree(d_big_img_nn);          cudaFree(d_big_img_bic);
+        cudaFree(d_big_img_nn_grey);             cudaFree(d_big_img_bic_grey);    cudaFree(big_artifact_map_cuda);
+        cudaFree(big_artifact_blurred_map_cuda);    cudaFree(big_img_fused_cuda);
+
+        //free(width);    free(height);
+#endif
+
     }
 
     catch (const std::exception& e)
@@ -426,4 +570,4 @@ int basicCudaOptimizedExecution()
     cudaDeviceReset();
     return 0;
 }
-#endif
+#endif 

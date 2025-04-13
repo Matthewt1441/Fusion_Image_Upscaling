@@ -4,8 +4,8 @@
 
 //#include "Serial_Kernel.cuh"
 //#include "Naive_CUDA_Kernel.cuh"
-//#include "Basic_CUDA_Optimize_Kernel.cuh"
-#include "Shared_Mem_CUDA_Kernel.cuh"
+#include "Basic_CUDA_Optimize_Kernel.cuh"
+//#include "Shared_Mem_CUDA_Kernel.cuh"
 
 #include <chrono>
 
@@ -14,6 +14,6 @@ int main()
     //return serialExecution();
     //return naiveCudaExecution();
     //return Code_Testing();
-    //return basicCudaOptimizedExecution();
-    return sharedMemCudaOptimizedExecution();
+    return basicCudaOptimizedExecution();
+    //return sharedMemCudaOptimizedExecution();
 }
