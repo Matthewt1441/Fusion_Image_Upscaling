@@ -3,11 +3,11 @@
   <ItemGroup>
     <CudaCompile Include="basic_optimization_cuda.cu" />
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="navie_cuda.cu" />
     <CudaCompile Include="ppm_image.cu" />
     <CudaCompile Include="serial_code.cu" />
     <CudaCompile Include="shared_memory_cuda.cu" />
     <CudaCompile Include="util.cu" />
+    <CudaCompile Include="naive_cuda.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Basic_CUDA_Optimize_Kernel.cuh" />
@@ -20,6 +20,7 @@
     <ClInclude Include="shared_memory_cuda.cuh" />
     <ClInclude Include="Shared_Mem_CUDA_Kernel.cuh" />
     <ClInclude Include="util.cuh" />
+    <ClInclude Include="NN_Test.cuh" />
   </ItemGroup>
   <ItemGroup>
     <None Include="SDL2.dll" />

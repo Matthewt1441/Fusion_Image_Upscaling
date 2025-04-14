@@ -35,6 +35,34 @@ char* readPPM(char* filename, int* width, int* height) {
     return pixel_data;
 }
 
+char* readPPMGray(char* filename, int* width, int* height) {
+    //std::ifstream file(filename, std::ios::binary);
+
+    std::ifstream file(filename, std::ios::binary); // open the file and throw exception if it doesn't exist
+    if (file.fail())
+        throw "File failed to open";
+
+    std::string magicNumber;
+    int maxColorValue;
+    int w = 0;
+    int h = 0;
+
+    file >> magicNumber;
+    file >> w >> h >> maxColorValue;
+
+    file.get(); // skip the trailing white space
+
+    size_t size = w * h;
+    char* pixel_data = new char[size];
+
+    file.read(pixel_data, size);
+
+    *width = w;
+    *height = h;
+
+    return pixel_data;
+}
+
 void writePPM(char* filename, char* img_data, int width, int height)
 {
     std::ofstream file(filename, std::ios::binary);

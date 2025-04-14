@@ -393,18 +393,18 @@ void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_he
                 //float temp2 = bicubicInterpolate(window_g, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
                 //float temp3 = bicubicInterpolate(window_b, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
 
-                if(x == 79 && y == 0)
-                {
-                    printf("Serial Window\n");
-                    for(int yy = 0; yy < 4; yy++)
-                    {
-                        for(int xx = 0; xx < 4; xx++)
-                        {
-                            printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
-                        }
-                        printf("\n");
-                    }
-                }
+                //if(x == 79 && y == 0)
+                //{
+                //    printf("Serial Window\n");
+                //    for(int yy = 0; yy < 4; yy++)
+                //    {
+                //        for(int xx = 0; xx < 4; xx++)
+                //        {
+                //            printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
+                //        }
+                //        printf("\n");
+                //    }
+                //}
 
                 float temp1 = bicubicInterpolate(window_r, (float)(y % f) / f, (float)(x % f) / f);
                 float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);

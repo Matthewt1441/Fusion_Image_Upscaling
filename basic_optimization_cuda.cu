@@ -305,20 +305,20 @@ __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, u
     int input_row = blockIdx.y * 4 + threadIdx.y;
     int input_col = blockIdx.x * 4 + threadIdx.x;
 
-    //Fill shared memory arrays
-    if (threadIdx.x < 4 && threadIdx.y < 4)
-    {
-        if(Col == 79 && Row == 0)
-        {
-            printf("Shared Mem Row: %d Col: %d\n", input_row, input_col);
-        }
-        rgba_val = img_data[input_row * width + input_col];
+    ////Fill shared memory arrays
+    //if (threadIdx.x < 4 && threadIdx.y < 4)
+    //{
+    //    if(Col == 79 && Row == 0)
+    //    {
+    //        printf("Shared Mem Row: %d Col: %d\n", input_row, input_col);
+    //    }
+    //    rgba_val = img_data[input_row * width + input_col];
 
-        s_window_r[threadIdx.y][threadIdx.x] = (float)rgba_val.r;
-        s_window_g[threadIdx.y][threadIdx.x] = (float)rgba_val.g;
-        s_window_b[threadIdx.y][threadIdx.x] = (float)rgba_val.b;
-    }
-    __syncthreads();
+    //    s_window_r[threadIdx.y][threadIdx.x] = (float)rgba_val.r;
+    //    s_window_g[threadIdx.y][threadIdx.x] = (float)rgba_val.g;
+    //    s_window_b[threadIdx.y][threadIdx.x] = (float)rgba_val.b;
+    //}
+    //__syncthreads();
 
 
     if (Row < big_height && Col < big_width)
@@ -350,10 +350,10 @@ __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, u
                         //if (sample_y > 0)
                         //    sample_y -= 1;
 
-                        if(Col == 79 && Row == 0)
-                        {
-                            printf("Non-Shared Mem Row: %d Col: %d\n", sample_y, sample_x);
-                        }
+                        //if(Col == 79 && Row == 0)
+                        //{
+                        //    printf("Non-Shared Mem Row: %d Col: %d\n", sample_y, sample_x);
+                        //}
 
 
                         rgba_val = img_data[sample_y * width + sample_x];
@@ -367,31 +367,31 @@ __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, u
             }
             __syncthreads();
 
-            //if(threadIdx.x == 0 && threadIdx.y == 0)
-            if(Col == 79 && Row == 0)
-            {
-                printf("Shared Memory Block %d,%d\n", blockIdx.y, blockIdx.x);
-                for(int yy = 0; yy < 4; yy++)
-                {
-                    for(int xx = 0; xx < 4; xx++)
-                    {
-                        printf("[(%3.3f,%3.3f,%3.3f)],\t", s_window_r[yy][xx], s_window_g[yy][xx], s_window_b[yy][xx]);
-                    }
-                    printf("\n");
-                }
+            ////if(threadIdx.x == 0 && threadIdx.y == 0)
+            //if(Col == 79 && Row == 0)
+            //{
+            //    printf("Shared Memory Block %d,%d\n", blockIdx.y, blockIdx.x);
+            //    for(int yy = 0; yy < 4; yy++)
+            //    {
+            //        for(int xx = 0; xx < 4; xx++)
+            //        {
+            //            printf("[(%3.3f,%3.3f,%3.3f)],\t", s_window_r[yy][xx], s_window_g[yy][xx], s_window_b[yy][xx]);
+            //        }
+            //        printf("\n");
+            //    }
 
-                printf("Non-Shared Block %d,%d\n", blockIdx.y, blockIdx.x);
-                for(int yy = 0; yy < 4; yy++)
-                {
-                    for(int xx = 0; xx < 4; xx++)
-                    {
-                        printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
-                    }
-                    printf("\n");
-                }
+            //    printf("Non-Shared Block %d,%d\n", blockIdx.y, blockIdx.x);
+            //    for(int yy = 0; yy < 4; yy++)
+            //    {
+            //        for(int xx = 0; xx < 4; xx++)
+            //        {
+            //            printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
+            //        }
+            //        printf("\n");
+            //    }
 
-            }
-            __syncthreads();
+            //}
+            //__syncthreads();
 
 
             rgba_val.r = (unsigned char)bicubicInterpolateDevice_GreyCon(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
