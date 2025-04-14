@@ -344,6 +344,7 @@ int serialExecution()
 
         nearestNeighbors(h_big_img_nn, big_width, big_height, h_img, width, height, scale);
         RGB2Greyscale(h_big_img_nn_grey, h_big_img_nn, big_width, big_height);
+        auto end = std::chrono::high_resolution_clock::now();
         bicubicInterpolation(h_big_img_bic, big_width, big_height, h_img, width, height, scale);
         RGB2Greyscale(h_big_img_bic_grey, h_big_img_bic, big_width, big_height);
 
@@ -357,7 +358,7 @@ int serialExecution()
 
         Image_Fusion(h_big_img_fused, h_big_img_nn, h_big_img_bic, h_blurred_artifact_map, big_width, big_height);
 
-        auto end = std::chrono::high_resolution_clock::now();
+        
         auto dur = end - start;
         processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
         printf("Total compute time (ms) %f\n", processing_time);
