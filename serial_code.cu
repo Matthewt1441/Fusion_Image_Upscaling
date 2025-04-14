@@ -321,105 +321,163 @@ float cubicInterpolate(float p[4], float x)
 }
 
 //                               y  x
-float bicubicInterpolate(float p[4][4], float x, float y) 
+float bicubicInterpolate(float p[4][4], float y, float x) 
 {
     float arr[4];
-    arr[0] = cubicInterpolate(p[0], y);
-    arr[1] = cubicInterpolate(p[1], y);
-    arr[2] = cubicInterpolate(p[2], y);
-    arr[3] = cubicInterpolate(p[3], y);
-    return cubicInterpolate(arr, x);
+    arr[0] = cubicInterpolate(p[0], x);
+    arr[1] = cubicInterpolate(p[1], x);
+    arr[2] = cubicInterpolate(p[2], x);
+    arr[3] = cubicInterpolate(p[3], x);
+    return cubicInterpolate(arr, y);
 }
 
 void bicubicInterpolation(unsigned char* big_img_data, int big_width, int big_height, unsigned char* img_data, int width, int height, int scale)
 {
+    //             y  x
     float window_r[4][4];
     float window_g[4][4];
     float window_b[4][4];
 
-    int f = scale;
-    int w = width;
-    int h = height;
+    int input_x = 0;
+    int input_y = 0;
 
-    int sample_x = 0;//
-    int sample_y = 0;
+    int window_x = 0;
+    int window_y = 0;
+    
+    int output_x = 0;
+    int output_y = 0;
 
-    for (int y = 0; y < 4; y++)
+    for (window_y = 0; window_y < 4; window_y++)
     {
-        for (int x = 0; x < 4; x++)
+        for (window_x = 0; window_x < 4; window_x++)
         {
-            window_r[y][x] = 0;
-            window_g[y][x] = 0;
-            window_b[y][x] = 0;
+            window_r[window_y][window_x] = 0;
+            window_g[window_y][window_x] = 0;
+            window_b[window_y][window_x] = 0;
+        }
+    }
+
+    for(output_y = 0; output_y < big_height; output_y++)
+    {
+        for(output_x = 0; output_x < big_width; output_x++)
+        {
+            //Calculate starting index for windows
+            float interpolated_x = (float)(output_x / (scale * 1.0));
+            float interpolated_y = (float)(output_y / (scale * 1.0));
+
+            int input_block_start_idx_x = (output_x / scale);
+            int input_block_start_idx_y = (output_y / scale);
+
+            float dx = interpolated_x - input_block_start_idx_x;
+            float dy = interpolated_y - input_block_start_idx_y;
+
+            //We are within a block of the input image, therefore fill windows
+            for(window_y = -1; window_y < 3; window_y++)
+            {
+                for(window_x = -1; window_x < 3; window_x++)
+                {
+                    //Calculate Input Image index
+                    input_x = input_block_start_idx_x + window_x;
+                    input_y = input_block_start_idx_y + window_y;
+
+                    // Nearest neighbor edge behavior
+                    if(input_x < 0 || input_x >= width)
+                    {
+                        // Find nearest in-bounds pixel
+                        input_x = (input_x < 0) ? 0 : width - 1;
+                    }
+                    // Nearest neighbor edge behavior
+                    if(input_y < 0 || input_y >= height)
+                    {
+                        // Find nearest in-bounds pixel
+                        input_y = (input_y < 0) ? 0 : height - 1;
+                    }
+
+                    window_r[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 0];    //R
+                    window_g[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 1];    //G
+                    window_b[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 2];    //B
+                }
+            }
+
+            float temp1 = bicubicInterpolate(window_r, dy, dx);
+            float temp2 = bicubicInterpolate(window_g, dy, dx);
+            float temp3 = bicubicInterpolate(window_b, dy, dx);
+
+            big_img_data[3 * (output_y * big_width + output_x) + 0] = (unsigned char)temp1;
+            big_img_data[3 * (output_y * big_width + output_x) + 1] = (unsigned char)temp2;
+            big_img_data[3 * (output_y * big_width + output_x) + 2] = (unsigned char)temp3;
+        
         }
     }
 
     //For y within Big image size
-    for (int y = 0; y < f * h; y++)
-    {
-        //For x within big image size
-        for (int x = 0; x < f * w; x++)
-        {
+    //for (int y = 0; y < f * h; y++)
+    //{
+    //    //For x within big image size
+    //    for (int x = 0; x < f * w; x++)
+    //    {
 
-            //Check if y & x divided by the scale is within small image size & not at the edge
-            if ((y / f + 4  < h) && (x / f + 4 < w))
-            {
-                //4x4 window loop
-                for (int l = 0; l < 4; l++) //Y
-                {
-                    //4x4 window loop
-                    for (int k = 0; k < 4; k++) //X
-                    {
-                        ////This check is not needed as its already done above
-                        //if ((y / f + l < h) && (x / f + k < w))
-                        //{
-                            sample_x = x / f + k;
-                            sample_y = y / f + l;
+    //        //Check if y & x divided by the scale is within small image size & not at the edge
+    //        if ((y / f + 4  < h) && (x / f + 4 < w))
+    //        {
+    //            //4x4 window loop
+    //            for (int l = 0; l < 4; l++) //Y
+    //            {
+    //                //4x4 window loop
+    //                for (int k = 0; k < 4; k++) //X
+    //                {
+    //                    ////This check is not needed as its already done above
+    //                    //if ((y / f + l < h) && (x / f + k < w))
+    //                    //{
+    //                        sample_x = x / f + k;
+    //                        sample_y = y / f + l;
 
-                            //if (sample_x > 0)
-                            //    sample_x-=1;
+    //                        //if (sample_x > 0)
+    //                        //    sample_x-=1;
 
-                            //if (sample_y > 0)
-                            //    sample_y-=1;
+    //                        //if (sample_y > 0)
+    //                        //    sample_y-=1;
 
-                            window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
-                            window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
-                            window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
-                        //}
-                    }
-                }
+    //                        window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
+    //                        window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
+    //                        window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
+    //                    //}
+    //                }
+    //            }
 
-                //float temp1 = bicubicInterpolate(window_r, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
-                //float temp2 = bicubicInterpolate(window_g, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
-                //float temp3 = bicubicInterpolate(window_b, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+    //            //float temp1 = bicubicInterpolate(window_r, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+    //            //float temp2 = bicubicInterpolate(window_g, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
+    //            //float temp3 = bicubicInterpolate(window_b, (float)(y % (4*f))/(4*f), (float)(x % (4*f))/(4*f));
 
-                if(x == 79 && y == 0)
-                {
-                    printf("Serial Window\n");
-                    for(int yy = 0; yy < 4; yy++)
-                    {
-                        for(int xx = 0; xx < 4; xx++)
-                        {
-                            printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
-                        }
-                        printf("\n");
-                    }
-                }
+    //            if(x == 79 && y == 0)
+    //            {
+    //                printf("Serial Window\n");
+    //                for(int yy = 0; yy < 4; yy++)
+    //                {
+    //                    for(int xx = 0; xx < 4; xx++)
+    //                    {
+    //                        printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
+    //                    }
+    //                    printf("\n");
+    //                }
+    //            }
 
-                float temp1 = bicubicInterpolate(window_r, (float)(y % f) / f, (float)(x % f) / f);
-                float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);
-                float temp3 = bicubicInterpolate(window_b, (float)(y % f) / f, (float)(x % f) / f);
+    //            float temp1 = bicubicInterpolate(window_r, (float)(y % f) / f, (float)(x % f) / f);
+    //            float temp2 = bicubicInterpolate(window_g, (float)(y % f) / f, (float)(x % f) / f);
+    //            float temp3 = bicubicInterpolate(window_b, (float)(y % f) / f, (float)(x % f) / f);
 
-                big_img_data[3 * (y * big_width + x) + 0] = (unsigned char)temp1;
-                big_img_data[3 * (y * big_width + x) + 1] = (unsigned char)temp2;
-                big_img_data[3 * (y * big_width + x) + 2] = (unsigned char)temp3;
-            }
-            else
-            {
-                big_img_data[3 * (y * big_width + x) + 0] = img_data[3 * ((y / f) * width + (x / f)) + 0];
-                big_img_data[3 * (y * big_width + x) + 1] = img_data[3 * ((y / f) * width + (x / f)) + 1];
-                big_img_data[3 * (y * big_width + x) + 2] = img_data[3 * ((y / f) * width + (x / f)) + 2];
-            }
-        }
-    }
+    //            big_img_data[3 * (y * big_width + x) + 0] = (unsigned char)temp1;
+    //            big_img_data[3 * (y * big_width + x) + 1] = (unsigned char)temp2;
+    //            big_img_data[3 * (y * big_width + x) + 2] = (unsigned char)temp3;
+    //        }
+    //        else
+    //        {
+    //            big_img_data[3 * (y * big_width + x) + 0] = img_data[3 * ((y / f) * width + (x / f)) + 0];
+    //            big_img_data[3 * (y * big_width + x) + 1] = img_data[3 * ((y / f) * width + (x / f)) + 1];
+    //            big_img_data[3 * (y * big_width + x) + 2] = img_data[3 * ((y / f) * width + (x / f)) + 2];
+    //        }
+    //    }
+    //}
+
+
 }
