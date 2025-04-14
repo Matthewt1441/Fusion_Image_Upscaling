@@ -260,14 +260,14 @@ __device__ float cubicInterpolateDevice(float p[4], float x)
     return output;
 }
 
-__device__ float bicubicInterpolateDevice(float p[4][4], float x, float y)
+__device__ float bicubicInterpolateDevice(float p[4][4], float y, float x)
 {
     float arr[4];
-    arr[0] = cubicInterpolateDevice(p[0], y);
-    arr[1] = cubicInterpolateDevice(p[1], y);
-    arr[2] = cubicInterpolateDevice(p[2], y);
-    arr[3] = cubicInterpolateDevice(p[3], y);
-    return cubicInterpolateDevice(arr, x);
+    arr[0] = cubicInterpolateDevice(p[0], x);
+    arr[1] = cubicInterpolateDevice(p[1], x);
+    arr[2] = cubicInterpolateDevice(p[2], x);
+    arr[3] = cubicInterpolateDevice(p[3], x);
+    return cubicInterpolateDevice(arr, y);
 }
 
 __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned char* img_data, int big_width, int big_height, int width, int height, int scale)
@@ -276,6 +276,16 @@ __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned
     int Row = blockIdx.y * blockDim.y + threadIdx.y;
     int Col = blockIdx.x * blockDim.x + threadIdx.x;
 
+    int input_x = 0;
+    int input_y = 0;
+
+    int window_x = 0;
+    int window_y = 0;
+    
+    int output_x = Col;
+    int output_y = Row;
+
+
     float window_r[4][4];
     float window_g[4][4];
     float window_b[4][4];
@@ -283,61 +293,62 @@ __global__ void bicubicInterpolationKernel(unsigned char* big_img_data, unsigned
     int sample_x = 0;
     int sample_y = 0;
 
-
-    if (Row < big_height && Col < big_width)
+    for (window_y = 0; window_y < 4; window_y++)
     {
-        for (int y = 0; y < 4; y++)
+        for (window_x = 0; window_x < 4; window_x++)
         {
-            for (int x = 0; x < 4; x++)
-            {
-                window_r[y][x] = 0;
-                window_g[y][x] = 0;
-                window_b[y][x] = 0;
-            }
+            window_r[window_y][window_x] = 0;
+            window_g[window_y][window_x] = 0;
+            window_b[window_y][window_x] = 0;
         }
+    }
 
-        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
+    if(output_y < big_height &&  output_x < big_width)
+    {
+        //Calculate starting index for windows
+        float interpolated_x = (float)(output_x / (scale * 1.0));
+        float interpolated_y = (float)(output_y / (scale * 1.0));
+
+        int input_block_start_idx_x = (output_x / scale);
+        int input_block_start_idx_y = (output_y / scale);
+
+        float dx = interpolated_x - input_block_start_idx_x;
+        float dy = interpolated_y - input_block_start_idx_y;
+
+        //We are within a block of the input image, therefore fill windows
+        for(window_y = -1; window_y < 3; window_y++)
         {
-            for (int l = 0; l < 4; l++)
+            for(window_x = -1; window_x < 3; window_x++)
             {
-                for (int k = 0; k < 4; k++)
+                //Calculate Input Image index
+                input_x = input_block_start_idx_x + window_x;
+                input_y = input_block_start_idx_y + window_y;
+
+                // Fill window with Nearest Neighbor edge behavior
+                if(input_x < 0 || input_x >= width)
                 {
-                    if ((Row / scale + l < height) && (Col / scale + k < width))
-                    {
-                        //window_r[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 0];
-                        //window_g[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 1];
-                        //window_b[l][k] = (float)img_data[3 * ((l + Row / scale) * width + Col / scale + k) + 2];
-
-                        sample_x = Col / scale + k;
-                        sample_y = Row / scale + l;
-
-                        if (sample_x > 0)
-                            sample_x -= 1;
-
-                        if (sample_y > 0)
-                            sample_y -= 1;
-
-                        window_r[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 0];
-                        window_g[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 1];
-                        window_b[l][k] = (float)img_data[3 * (sample_y * width + sample_x) + 2];
-                    }
-
+                    // Find nearest in-bounds pixel
+                    input_x = (input_x < 0) ? 0 : width - 1;
                 }
+                // Fill window with Nearest Neighbor edge behavior
+                if(input_y < 0 || input_y >= height)
+                {
+                    // Find nearest in-bounds pixel
+                    input_y = (input_y < 0) ? 0 : height - 1;
+                }
+
+                window_r[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 0];    //R
+                window_g[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 1];    //G
+                window_b[window_y + 1][window_x + 1] = (float)img_data[3 * (input_y * width + input_x) + 2];    //B
             }
-
-            float temp1 = bicubicInterpolateDevice(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            float temp2 = bicubicInterpolateDevice(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            float temp3 = bicubicInterpolateDevice(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-
-            big_img_data[3 * (Row * big_width + Col) + 0] = (unsigned char)temp1;
-            big_img_data[3 * (Row * big_width + Col) + 1] = (unsigned char)temp2;
-            big_img_data[3 * (Row * big_width + Col) + 2] = (unsigned char)temp3;
         }
-        else
-        {
-            big_img_data[3 * (Row * big_width + Col) + 0] = img_data[3 * ((Row / scale) * width + (Col / scale)) + 0];
-            big_img_data[3 * (Row * big_width + Col) + 1] = img_data[3 * ((Row / scale) * width + (Col / scale)) + 1];
-            big_img_data[3 * (Row * big_width + Col) + 2] = img_data[3 * ((Row / scale) * width + (Col / scale)) + 2];
-        }
+
+        float r = bicubicInterpolateDevice(window_r, dy, dx);
+        float g = bicubicInterpolateDevice(window_g, dy, dx);
+        float b = bicubicInterpolateDevice(window_b, dy, dx);
+
+        big_img_data[3 * (output_y * big_width + output_x) + 0] = (unsigned char)r;
+        big_img_data[3 * (output_y * big_width + output_x) + 1] = (unsigned char)g;
+        big_img_data[3 * (output_y * big_width + output_x) + 2] = (unsigned char)b;
     }
 }

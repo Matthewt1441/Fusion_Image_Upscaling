@@ -15,6 +15,6 @@ int main()
     //return naiveCudaExecution();
     //return Code_Testing();
     //return basicCudaOptimizedExecution();
-    //sharedMemCudaOptimizedExecution();
+    sharedMemCudaOptimizedExecution();
     return 1;
 }

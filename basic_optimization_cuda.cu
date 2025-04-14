@@ -188,14 +188,14 @@ __device__ float cubicInterpolateDevice_GreyCon(float p[4], float x)
     return output;
 }
 
-__device__ float bicubicInterpolateDevice_GreyCon(float p[4][4], float x, float y)
+__device__ float bicubicInterpolateDevice_GreyCon(float p[4][4], float y, float x)
 {
     float arr[4];
-    arr[0] = cubicInterpolateDevice_GreyCon(p[0], y);
-    arr[1] = cubicInterpolateDevice_GreyCon(p[1], y);
-    arr[2] = cubicInterpolateDevice_GreyCon(p[2], y);
-    arr[3] = cubicInterpolateDevice_GreyCon(p[3], y);
-    return cubicInterpolateDevice_GreyCon(arr, x);
+    arr[0] = cubicInterpolateDevice_GreyCon(p[0], x);
+    arr[1] = cubicInterpolateDevice_GreyCon(p[1], x);
+    arr[2] = cubicInterpolateDevice_GreyCon(p[2], x);
+    arr[3] = cubicInterpolateDevice_GreyCon(p[3], x);
+    return cubicInterpolateDevice_GreyCon(arr, y);
 }
 
 __global__ void bicubicInterpolation_GreyCon_Kernel(unsigned char* big_img_data, unsigned char* grey_big_img_data, unsigned char* img_data, int big_width, int big_height, int width, int height, int scale)
@@ -280,135 +280,82 @@ __global__ void bicubicInterpolation_GreyCon_Kernel(unsigned char* big_img_data,
 
 __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
 {
-
     int Row = blockIdx.y * blockDim.y + threadIdx.y;
     int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int input_x = 0;
+    int input_y = 0;
+
+    int window_x = 0;
+    int window_y = 0;
+    
+    int output_x = Col;
+    int output_y = Row;
 
     float window_r[4][4];
     float window_g[4][4];
     float window_b[4][4];
 
-    __shared__ float s_window_r[4][4];
-    __shared__ float s_window_g[4][4];
-    __shared__ float s_window_b[4][4];
-
-    int sample_x = 0;
-    int sample_y = 0;
-
     RGBA_t rgba_val;
-    //unsigned char r = 0;
-    //unsigned char g = 0;
-    //unsigned char b = 0;
 
-    //Low Res Image Coordinates (Input)
-    //Always read in 4x4 pixels no matter the upscaling factor.
-    int input_row = blockIdx.y * 4 + threadIdx.y;
-    int input_col = blockIdx.x * 4 + threadIdx.x;
-
-    //Fill shared memory arrays
-    if (threadIdx.x < 4 && threadIdx.y < 4)
+    for (window_y = 0; window_y < 4; window_y++)
     {
-        if(Col == 79 && Row == 0)
+        for (window_x = 0; window_x < 4; window_x++)
         {
-            printf("Shared Mem Row: %d Col: %d\n", input_row, input_col);
+            window_r[window_y][window_x] = 0;
+            window_g[window_y][window_x] = 0;
+            window_b[window_y][window_x] = 0;
         }
-        rgba_val = img_data[input_row * width + input_col];
-
-        s_window_r[threadIdx.y][threadIdx.x] = (float)rgba_val.r;
-        s_window_g[threadIdx.y][threadIdx.x] = (float)rgba_val.g;
-        s_window_b[threadIdx.y][threadIdx.x] = (float)rgba_val.b;
     }
-    __syncthreads();
 
-
-    if (Row < big_height && Col < big_width)
+    if(output_y < big_height &&  output_x < big_width)
     {
-        for (int y = 0; y < 4; y++)
+        //Calculate starting index for windows
+        float interpolated_x = (float)(output_x / (scale * 1.0));
+        float interpolated_y = (float)(output_y / (scale * 1.0));
+
+        int input_block_start_idx_x = (output_x / scale);
+        int input_block_start_idx_y = (output_y / scale);
+
+        float dx = interpolated_x - input_block_start_idx_x;
+        float dy = interpolated_y - input_block_start_idx_y;
+
+        //We are within a block of the input image, therefore fill windows
+        for(window_y = -1; window_y < 3; window_y++)
         {
-            for (int x = 0; x < 4; x++)
+            for(window_x = -1; window_x < 3; window_x++)
             {
-                window_r[y][x] = 0;
-                window_g[y][x] = 0;
-                window_b[y][x] = 0;
+                //Calculate Input Image index
+                input_x = input_block_start_idx_x + window_x;
+                input_y = input_block_start_idx_y + window_y;
+
+                // Fill window with Nearest Neighbor edge behavior
+                if(input_x < 0 || input_x >= width)
+                {
+                    // Find nearest in-bounds pixel
+                    input_x = (input_x < 0) ? 0 : width - 1;
+                }
+                // Fill window with Nearest Neighbor edge behavior
+                if(input_y < 0 || input_y >= height)
+                {
+                    // Find nearest in-bounds pixel
+                    input_y = (input_y < 0) ? 0 : height - 1;
+                }
+                rgba_val = img_data[input_y * width + input_x];
+
+                window_r[window_y + 1][window_x + 1] = (float)rgba_val.r;    //R
+                window_g[window_y + 1][window_x + 1] = (float)rgba_val.g;    //G
+                window_b[window_y + 1][window_x + 1] = (float)rgba_val.b;    //B
             }
         }
 
-        if ((Row / scale + 4 < height) && (Col / scale + 4 < width))
-        {
-            for (int l = 0; l < 4; l++)
-            {
-                for (int k = 0; k < 4; k++)
-                {
-                    if ((Row / scale + l < height) && (Col / scale + k < width))
-                    {
-                        sample_x = Col / scale + k;
-                        sample_y = Row / scale + l;
+        rgba_val.r = (unsigned char)bicubicInterpolateDevice_GreyCon(window_r, dy, dx);
+        rgba_val.g = (unsigned char)bicubicInterpolateDevice_GreyCon(window_g, dy, dx);
+        rgba_val.b = (unsigned char)bicubicInterpolateDevice_GreyCon(window_b, dy, dx);
 
-                        //if (sample_x > 0)
-                        //    sample_x -= 1;
+        big_img_data[output_y * big_width + output_x] = rgba_val;
 
-                        //if (sample_y > 0)
-                        //    sample_y -= 1;
+        grey_big_img_data[output_y * big_width + output_x] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
 
-                        if(Col == 79 && Row == 0)
-                        {
-                            printf("Non-Shared Mem Row: %d Col: %d\n", sample_y, sample_x);
-                        }
-
-
-                        rgba_val = img_data[sample_y * width + sample_x];
-
-                        window_r[l][k] = (float)rgba_val.r;
-                        window_g[l][k] = (float)rgba_val.g;
-                        window_b[l][k] = (float)rgba_val.b;
-                    }
-
-                }
-            }
-            __syncthreads();
-
-            //if(threadIdx.x == 0 && threadIdx.y == 0)
-            if(Col == 79 && Row == 0)
-            {
-                printf("Shared Memory Block %d,%d\n", blockIdx.y, blockIdx.x);
-                for(int yy = 0; yy < 4; yy++)
-                {
-                    for(int xx = 0; xx < 4; xx++)
-                    {
-                        printf("[(%3.3f,%3.3f,%3.3f)],\t", s_window_r[yy][xx], s_window_g[yy][xx], s_window_b[yy][xx]);
-                    }
-                    printf("\n");
-                }
-
-                printf("Non-Shared Block %d,%d\n", blockIdx.y, blockIdx.x);
-                for(int yy = 0; yy < 4; yy++)
-                {
-                    for(int xx = 0; xx < 4; xx++)
-                    {
-                        printf("[(%3.3f,%3.3f,%3.3f)],\t", window_r[yy][xx], window_g[yy][xx], window_b[yy][xx]);
-                    }
-                    printf("\n");
-                }
-
-            }
-            __syncthreads();
-
-
-            rgba_val.r = (unsigned char)bicubicInterpolateDevice_GreyCon(window_r, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            rgba_val.g = (unsigned char)bicubicInterpolateDevice_GreyCon(window_g, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-            rgba_val.b = (unsigned char)bicubicInterpolateDevice_GreyCon(window_b, (float)(Row % scale) / scale, (float)(Col % scale) / scale);
-
-            big_img_data[Row * big_width + Col] = rgba_val;
-
-            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
-        }
-        else
-        {
-            rgba_val = img_data[(Row / scale) * width + (Col / scale)];
-
-            big_img_data[Row * big_width + Col] = rgba_val;
-
-            grey_big_img_data[Row * big_width + Col] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
-        }
     }
 }
