@@ -341,6 +341,7 @@ __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, u
                     // Find nearest in-bounds pixel
                     input_y = (input_y < 0) ? 0 : height - 1;
                 }
+
                 rgba_val = img_data[input_y * width + input_x];
 
                 window_r[window_y + 1][window_x + 1] = (float)rgba_val.r;    //R

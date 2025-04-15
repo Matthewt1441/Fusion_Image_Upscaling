@@ -2,7 +2,9 @@
 #include "device_launch_parameters.h"
 #include "util.cuh"
 #include <stdio.h>
-
+#include <stdlib.h>
+#include <cmath>
+#include <math.h>
 //Initial Naive approach
 __global__ void rgbToRGBA_Kernel(RGBA_t* d_RGBA_img, unsigned char* d_rgb_img, int numpixels)
 {
@@ -139,4 +141,22 @@ GREY_LOOP_EXIT:
         printf("Images match!\n");
     }
 
+}
+
+
+float cubicKernel(float x, float a)
+{
+     x = abs(x);
+     if(x <= 1.0f)
+     {
+         return (a + 2) * x * x * x - (a + 3) * x * x + 1;
+     }
+     else if(x < 2.0f)
+     {
+         return a * x * x * x - 5 * a * x * x + 8 * a * x - 4 * a;
+     }
+     else
+     {
+         return 0.0f;
+     }
 }

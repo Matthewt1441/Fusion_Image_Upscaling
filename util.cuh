@@ -14,3 +14,4 @@ __global__ void rgbaToRGB_Kernel(unsigned char* d_rgb_img, RGBA_t* d_rgba_img, i
 
 void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height);
 void Grey_Image_Compare(unsigned char* img1, unsigned char* img2, int width, int height);
+float cubicKernel(float x, float a = -0.5);
