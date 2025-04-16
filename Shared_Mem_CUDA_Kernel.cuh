@@ -326,7 +326,7 @@ int sharedMemCudaOptimizedExecution()
     unsigned char*      d_temp_output_img2;
 
     //Kernel Parameters
-    int scale = 2;
+    int scale = 3;
     bool RUNNING = true;
     bool firstImg = true;
 
@@ -427,8 +427,10 @@ int sharedMemCudaOptimizedExecution()
         dim3 Grid_Arti(((width - 1) / 8) + 1, ((height - 1) / 8) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
         dim3 Block_Arti(8, 8);
 
-        dim3 BiCubic_Grid(((big_width - 1) / 16) + 1, ((big_height - 1) / 16) + 1);
-        dim3 BiCubic_Block(16, 16);
+        dim3 BiCubic_Block(12, 12);
+        dim3 BiCubic_Grid(((big_width - 1) / BiCubic_Block.x) + 1, ((big_height - 1) / BiCubic_Block.y) + 1);
+        int BiCubic_Shared_Mem_Size = ((BiCubic_Block.y / scale) + 3) * ((BiCubic_Block.x / scale) + 3);
+
 
         dim3 GRID_RGB_Convert(ceil((big_width * big_height) / 256.0));
         dim3 BLOCK_RGB_Convert(256);
@@ -485,7 +487,7 @@ int sharedMemCudaOptimizedExecution()
         //horizontalBicubicConvolve<<<Grid, Block>>>(d_big_img_bic, d_RGBA_img, d_bic_kernel, big_width, big_height, width, height, scale, BIC_Ksize );
         //verticalBicubicConvolve<<<Grid, Block>>>(d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, d_bic_kernel, big_width, big_height, width, height, scale, BIC_Ksize );
         //bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
-        bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA<<<BiCubic_Grid, BiCubic_Block>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA<<<BiCubic_Grid, BiCubic_Block, sizeof(RGBA_t) * BiCubic_Shared_Mem_Size>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
         cudaDeviceSynchronize();
 
         //Upscale image and convert to greyscale using Nearest Neighbor method

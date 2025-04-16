@@ -288,7 +288,7 @@ int serialExecution()
     float*          h_blurred_artifact_map;             //Blurred Artifact Map
 
     //Kernel Parameters
-    int scale = 2;
+    int scale = 3;
     bool RUNNING = true;
     bool firstImg = true;
 

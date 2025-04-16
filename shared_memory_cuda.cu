@@ -117,24 +117,29 @@ __device__ float bicubicInterpolateDevice_Shared(float p[4][4], float y, float x
     return cubicInterpolateDevice_Shared(arr, y);
 }
 
-//Run with an 8x8 block size
+//Run with block sizes that are multiples of the scale
 __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, int big_width, int big_height, int width, int height, int scale)
 {
 
     int Row = blockIdx.y * blockDim.y + threadIdx.y;
     int Col = blockIdx.x * blockDim.x + threadIdx.x;
+ 
+    int g_input_x = 0;
+    int g_input_y = 0;
+    
+    int g_output_x = Col;
+    int g_output_y = Row;
 
-    int input_x = 0;
-    int input_y = 0;
+    int tile_input_x = 0;
+    int tile_input_y = 0;
     
     int window_x = 0;
     int window_y = 0;
 
-    int output_x = Col;
-    int output_y = Row;
-
-    //Assume scale of 2 for now
-    __shared__ RGBA_t s_intput_tile[11][11];
+    //Only based on Block Size
+    int tile_width = (blockDim.x / scale) + 3;
+    int tile_height = (blockDim.y / scale) + 3;
+    extern __shared__ RGBA_t s_tile[];
 
     float window_r[4][4];
     float window_g[4][4];
@@ -142,49 +147,73 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
 
     RGBA_t rgba_val;
 
-    if(threadIdx.x < 11 && threadIdx.y < 11)
+    if(threadIdx.x < tile_width && threadIdx.y < tile_height)
     {
-        input_x = (blockIdx.x * 8 + threadIdx.x) - 1;
-        input_y = (blockIdx.y * 8 + threadIdx.y) - 1;
+        //Calculate Global Input Index
+        g_input_x = blockIdx.x * (blockDim.x / scale) + threadIdx.x - 1;
+        g_input_y = blockIdx.y * (blockDim.y / scale) + threadIdx.y - 1;
 
         // Fill window with Nearest Neighbor edge behavior
-        if(input_x < 0 || input_x >= width)
+        if(g_input_x < 0 || g_input_x >= width)
         {
             // Find nearest in-bounds pixel
-            input_x = (input_x < 0) ? 0 : width - 1;
+            g_input_x = (g_input_x < 0) ? 0 : width - 1;
         }
         // Fill window with Nearest Neighbor edge behavior
-        if(input_y < 0 || input_y >= height)
+        if(g_input_y < 0 || g_input_y >= height)
         {
             // Find nearest in-bounds pixel
-            input_y = (input_y < 0) ? 0 : height - 1;
+            g_input_y = (g_input_y < 0) ? 0 : height - 1;
         }
 
-        s_intput_tile[threadIdx.y][threadIdx.x] = img_data[input_y * width + input_x];
+        s_tile[threadIdx.y * tile_width + threadIdx.x] = img_data[g_input_y * width + g_input_x];
     }
     __syncthreads();
 
-    if(output_y < big_height && output_x < big_width)
+    //if(blockIdx.x == 4 && blockIdx.y == 0)
+    //if(Col == 760 && Row == 0)
+    //{
+    //    
+    //    //if(threadIdx.x == 3 && threadIdx.y == 0)
+    //    {
+    //        printf("Output Idx.x: %d, Idx.y: %d, BlockIdx.x: %d, BlockIdx.y: %d\n", Col, Row, blockIdx.x, blockIdx.y);
+    //        printf("Input Tile\n");
+    //        for(int i = 0; i < tile_height; i++)
+    //        {
+    //            for(int j = 0; j < tile_width; j++)
+    //            {
+    //                printf("[ %d, %d, %d ]", s_tile[i * tile_width + j].r, s_tile[i * tile_width + j].g, s_tile[i * tile_width + j].b);
+    //            }
+    //            printf("\n");
+    //        }
+    //    }
+    //}
+    //__syncthreads();
+
+
+
+    if(g_output_y < big_height && g_output_x < big_width)
     {
-        //Calculate starting index for windows
+        //Calculate starting index for input tile
         float interpolated_x = (float)((threadIdx.x / (scale * 1.0)) + 1.0);
         float interpolated_y = (float)((threadIdx.y / (scale * 1.0)) + 1.0);
 
-        int input_block_start_idx_x = (threadIdx.x / scale) + 1;
-        int input_block_start_idx_y = (threadIdx.y / scale) + 1;
+        int interpolated_idx_x = (threadIdx.x / scale) + 1;
+        int interpolated_idx_y = (threadIdx.y / scale) + 1;
 
-        float dx = interpolated_x - input_block_start_idx_x;
-        float dy = interpolated_y - input_block_start_idx_y;
+        float dx = interpolated_x - interpolated_idx_x;
+        float dy = interpolated_y - interpolated_idx_y;
 
+        //Fill local window with tiled input data
         for(window_y = -1; window_y < 3; window_y++)
         {
             for(window_x = -1; window_x < 3; window_x++)
             {
-                //Calculate Input Image index
-                input_x = input_block_start_idx_x + window_x;
-                input_y = input_block_start_idx_y + window_y;
+                //Calculate Input Image Tile index
+                tile_input_x = interpolated_idx_x + window_x;
+                tile_input_y = interpolated_idx_y + window_y;
 
-                rgba_val = s_intput_tile[input_y][input_x];
+                rgba_val = s_tile[tile_input_y * tile_width + tile_input_x];
 
                 window_r[window_y + 1][window_x + 1] = (float)rgba_val.r;    //R
                 window_g[window_y + 1][window_x + 1] = (float)rgba_val.g;    //G
@@ -192,13 +221,33 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
             }
         }
 
+        //if(blockIdx.x == 4 && blockIdx.y == 0)
+        //if(Col == 760 && Row == 0)
+        //{
+        //
+        //    //if(threadIdx.x == 3 && threadIdx.y == 0)
+        //    {
+        //        printf("Output Idx.x: %d, Idx.y: %d, dx: %f, dy: %f\n", Col, Row, dx, dy);
+        //        printf("Window\n");
+        //        for(int i = 0; i < 4; i++)
+        //        {
+        //            for(int j = 0; j < 4; j++)
+        //            {
+        //                printf("[ %f, %f, %f ]", window_r[i][j], window_g[i][j], window_b[i][j]);
+        //            }
+        //            printf("\n");
+        //        }
+        //    }
+        //}
+        //__syncthreads();
+
         rgba_val.r = (unsigned char)bicubicInterpolateDevice_Shared(window_r, dy, dx);
         rgba_val.g = (unsigned char)bicubicInterpolateDevice_Shared(window_g, dy, dx);
         rgba_val.b = (unsigned char)bicubicInterpolateDevice_Shared(window_b, dy, dx);
 
-        big_img_data[output_y * big_width + output_x] = rgba_val;
+        big_img_data[g_output_y * big_width + g_output_x] = rgba_val;
 
-        grey_big_img_data[output_y * big_width + output_x] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
+        grey_big_img_data[g_output_y * big_width + g_output_x] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
 
     }
 
