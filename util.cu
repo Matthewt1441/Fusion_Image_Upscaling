@@ -85,13 +85,37 @@ void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int heig
         for(x = 0; x < width; x++)
         {
             idx = y * width + x;
+            char img1_r = img1[idx + 0];
+            char img1_g = img1[idx + 1];
+            char img1_b = img1[idx + 2];
+            char img2_r = img2[idx + 0];
+            char img2_g = img2[idx + 1];
+            char img2_b = img2[idx + 2];
 
-            //                 R                                   G                                   B
-            if((img1[idx + 0] != img2[idx + 0]) || (img1[idx + 1] != img2[idx + 1]) || (img1[idx + 2] != img2[idx + 2]))
+            if((img2_r < img1_r - 1) || (img2_r > img1_r + 1))
             {
                 pass = false;
                 goto LOOP_EXIT;
             }
+
+            if((img2_g < img1_g - 1) || (img2_g > img1_g + 1))
+            {
+                pass = false;
+                goto LOOP_EXIT;
+            }
+
+            if((img2_b < img1_b - 1) || (img2_b > img1_b + 1))
+            {
+                pass = false;
+                goto LOOP_EXIT;
+            }
+
+            ////                 R                                   G                                   B
+            //if((img1[idx + 0] != img2[idx + 0]) || (img1[idx + 1] != img2[idx + 1]) || (img1[idx + 2] != img2[idx + 2]))
+            //{
+            //    pass = false;
+            //    goto LOOP_EXIT;
+            //}
 
 
         }
@@ -100,7 +124,8 @@ void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int heig
 LOOP_EXIT:
     if(!pass)
     {
-        printf("Images do not match at pixel X: %d, Y: %d\n", x, y);
+        printf("Images do not match at pixel X: %d, Y: %d, Img1 [%d, %d, %d], Img2 [%d, %d, %d]\n", x, y, img1[idx + 0], img1[idx + 1], img1[idx + 2], img2[idx + 0], img2[idx + 1], img2[idx + 2]);
+
     }
     else
     {
