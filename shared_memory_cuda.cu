@@ -253,8 +253,167 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
 
 }
 
+//__global__ void Artifact_Shared_Memory_Kernel2(float* artifact_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
+//{
+//    //int window_size = 8;
+//    //Window size dictates the size of structures that we can detect. Maybe should look into what effect this has
+//    //on overall image quality & performance
+//    // Consider the guassian option with an 11x11 window
+//
+//    extern __shared__ float window_img[];
+//
+//    __shared__ float ssim_sums[5];  //sum1, sum2, sum1Sq, sum2Sq, sum12
+//    //__shared__ float ssim_offsets[6];
+//    int ssim_offset_img1[6] = { WINDOW_PIXELS, 0, WINDOW_PIXELS, 0, WINDOW_PIXELS };
+//    int ssim_offset_img2[6] = { WINDOW_PIXELS, 0, WINDOW_PIXELS, 0, 0 };
+//
+//    __shared__ float ssim;
+//
+//    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+//    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+//
+//    int tid_x = threadIdx.x;
+//    int tid_y = threadIdx.y;
+//
+//    float sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, sum12 = 0;
+//    float img_diff;
+//
+//    int valid_count = 0;
+//
+//    //For now, generate a smaller image.
+//
+//    if (Row < height && Col < width)
+//    {
+//        sum1 = img_1[Row * width + Col];    //Using these as temp registers. Just pretend they are called temp1 & temp2
+//        sum2 = img_2[Row * width + Col];
+//        window_img[tid_y * WINDOW_SIZE + tid_x + (WINDOW_PIXELS)] = sum1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = sum2;
+//        img_diff = (float)abs((sum1 - sum2) / 255.0);
+//    }
+//
+//    else
+//    {
+//        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = -1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = -1;
+//    }
+//
+//    sum1 = 0; sum2 = 0; //reset registers
+//
+//    __syncthreads();
+//
+//    if (tid_x < 5 && tid_y == 0)
+//    {
+//        for (int i = 0; i < 8; ++i)
+//        {
+//            for (int j = 0; j < 8; ++j)
+//            {
+//                if ((window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] >= 0) && (window_img[i * WINDOW_SIZE + j] >= 0))
+//                {
+//                    ssim_sums[tid_x] += (window_img[i * WINDOW_SIZE + j + ssim_offset_img1[tid_x]] * (window_img[i * WINDOW_SIZE + j + ssim_offset_img2[tid_x]]) * (tid_x > 1) + (tid_x < 2));
+//                    valid_count++;
+//                }
+//            }
+//        }
+//    }
+//    __syncthreads();
+//
+//    if (tid_x == 0 && tid_y == 0)
+//    {
+//        float mu1 = ssim_sums[0] / valid_count;
+//        float mu2 = ssim_sums[1] / valid_count;
+//        float sigma1Sq = (ssim_sums[2] / valid_count) - (mu1 * mu1);
+//        float sigma2Sq = (ssim_sums[3] / valid_count) - (mu2 * mu2);
+//        float sigma12 = (ssim_sums[4] / valid_count) - (mu1 * mu2);
+//
+//        // Stabilizing constants
+//        float C1 = 6.5025; // (K1*L)^2, where K1=0.01 and L=255
+//        float C2 = 58.5225; // (K2*L)^2, where K2=0.03 and L=255
+//
+//        ssim = ((2 * mu1 * mu2 + C1) * (2 * sigma12 + C2)) / ((mu1 * mu1 + mu2 * mu2 + C1) * (sigma1Sq + sigma2Sq + C2));
+//    }
+//    __syncthreads();
+//
+//    artifact_map[Row * width + Col] = ssim * img_diff;
+//}
+//
+//#define WINDOW_SIZE     8
+//#define WINDOW_PIXELS   128
+//
+//__global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
+//{
+//    //int window_size = 8;
+//    //Window size dictates the size of structures that we can detect. Maybe should look into what effect this has
+//    //on overall image quality & performance
+//    // Consider the guassian option with an 11x11 window
+//
+//    extern __shared__ float window_img[];
+//
+//    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+//    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+//
+//    int tid_x = threadIdx.x;
+//    int tid_y = threadIdx.y;
+//
+//    float sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, sum12 = 0;
+//    float img_diff;
+//
+//    int valid_count = 0;
+//
+//    //For now, generate a smaller image.
+//
+//    if (Row < height && Col < width)
+//    {
+//        sum1 = img_1[Row * width + Col];    //Using these as temp registers. Just pretend they are called temp1 & temp2
+//        sum2 = img_2[Row * width + Col];
+//        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = sum1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = sum2;
+//        img_diff = (float)abs((sum1 - sum2) / 255.0);
+//    }
+//
+//    else
+//    {
+//        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = -1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = -1;
+//    }
+//
+//    sum1 = 0; sum2 = 0; //reset registers
+//
+//    __syncthreads();
+//
+//    for (int i = 0; i < 8; ++i)
+//    {
+//        for (int j = 0; j < 8; ++j)
+//        {
+//            if ((window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] >= 0) && (window_img[i * WINDOW_SIZE + j] >= 0))
+//            {
+//                sum1 += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS];
+//                sum2 += window_img[i * WINDOW_SIZE + j];
+//                sum1Sq += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] * window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS];
+//                sum2Sq += window_img[i * WINDOW_SIZE + j] * window_img[i * WINDOW_SIZE + j];
+//                sum12 += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] * window_img[i * WINDOW_SIZE + j];
+//                valid_count++;
+//            }
+//        }
+//    }
+//
+//    float mu1 = sum1 / valid_count;
+//    float mu2 = sum2 / valid_count;
+//    float sigma1Sq = (sum1Sq / valid_count) - (mu1 * mu1);
+//    float sigma2Sq = (sum2Sq / valid_count) - (mu2 * mu2);
+//    float sigma12 = (sum12 / valid_count) - (mu1 * mu2);
+//
+//    // Stabilizing constants
+//    float C1 = 6.5025; // (K1*L)^2, where K1=0.01 and L=255
+//    float C2 = 58.5225; // (K2*L)^2, where K2=0.03 and L=255
+//
+//    float ssim = ((2 * mu1 * mu2 + C1) * (2 * sigma12 + C2)) / ((mu1 * mu1 + mu2 * mu2 + C1) * (sigma1Sq + sigma2Sq + C2));
+//
+//    artifact_map[Row * width + Col] = ssim * img_diff;
+//}
+//
 
-#define WINDOW_SIZE 8
+#define WINDOW_SIZE     8
+#define WINDOW_PIXELS   64
 
 __global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
 {
@@ -277,19 +436,19 @@ __global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char
     int valid_count = 0;
 
     //For now, generate a smaller image.
-    
+
     if (Row < height && Col < width)
     {
         sum1 = img_1[Row * width + Col];    //Using these as temp registers. Just pretend they are called temp1 & temp2
         sum2 = img_2[Row * width + Col];
-        window_img[tid_y * WINDOW_SIZE + tid_x + (WINDOW_SIZE * WINDOW_SIZE)] = sum1;
+        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = sum1;
         window_img[tid_y * WINDOW_SIZE + tid_x] = sum2;
         img_diff = (float)abs((sum1 - sum2) / 255.0);
     }
-                
+
     else
     {
-        window_img[tid_y * WINDOW_SIZE + tid_x + (WINDOW_SIZE * WINDOW_SIZE)] = -1;
+        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = -1;
         window_img[tid_y * WINDOW_SIZE + tid_x] = -1;
     }
 
@@ -301,13 +460,13 @@ __global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char
     {
         for (int j = 0; j < 8; ++j)
         {
-            if ((window_img[i * WINDOW_SIZE + j + (WINDOW_SIZE * WINDOW_SIZE)] >= 0) && (window_img[i * WINDOW_SIZE + j] >= 0))
+            if ((window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] >= 0) && (window_img[i * WINDOW_SIZE + j] >= 0))
             {
-                sum1 += window_img[i * WINDOW_SIZE + j + (WINDOW_SIZE * WINDOW_SIZE)];
+                sum1 += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS];
                 sum2 += window_img[i * WINDOW_SIZE + j];
-                sum1Sq += window_img[i * WINDOW_SIZE + j + (WINDOW_SIZE * WINDOW_SIZE)] * window_img[i * WINDOW_SIZE + j + (WINDOW_SIZE * WINDOW_SIZE)];
+                sum1Sq += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] * window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS];
                 sum2Sq += window_img[i * WINDOW_SIZE + j] * window_img[i * WINDOW_SIZE + j];
-                sum12 += window_img[i * WINDOW_SIZE + j + (WINDOW_SIZE * WINDOW_SIZE)] * window_img[i * WINDOW_SIZE + j];
+                sum12 += window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS] * window_img[i * WINDOW_SIZE + j];
                 valid_count++;
             }
         }
@@ -327,6 +486,85 @@ __global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char
 
     artifact_map[Row * width + Col] = ssim * img_diff;
 }
+
+//#define WINDOW_SIZE     16
+//#define WINDOW_PIXELS   256
+//
+//
+//__global__ void Artifact_Shared_Memory_Kernel(float* artifact_map, unsigned char* img_1, unsigned char* img_2, int width, int height)
+//{
+//    //int window_size = 8;
+//    //Window size dictates the size of structures that we can detect. Maybe should look into what effect this has
+//    //on overall image quality & performance
+//    // Consider the guassian option with an 11x11 window
+//
+//    extern __shared__ float window_img[];
+//
+//    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+//    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+//
+//    int tid_x = threadIdx.x;
+//    int tid_y = threadIdx.y;
+//
+//    float sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, sum12 = 0;
+//    float img_diff;
+//
+//    int valid_count = 0;
+//
+//    //For now, generate a smaller image.
+//
+//    if (Row < height && Col < width)
+//    {
+//        sum1 = img_1[Row * width + Col];    //Using these as temp registers. Just pretend they are called temp1 & temp2
+//        sum2 = img_2[Row * width + Col];
+//        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = sum1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = sum2;
+//        img_diff = (float)abs((sum1 - sum2) / 255.0);
+//    }
+//
+//    else
+//    {
+//        window_img[tid_y * WINDOW_SIZE + tid_x + WINDOW_PIXELS] = -1;
+//        window_img[tid_y * WINDOW_SIZE + tid_x] = -1;
+//    }
+//
+//    sum1 = 0; sum2 = 0; //reset registers
+//
+//    __syncthreads();
+//
+//    int offset_x = 8 * (tid_x >= 8);
+//    int offset_y = 8 * (tid_y >= 8);
+//
+//    for (int i = 0; i < 8; ++i)
+//    {
+//        for (int j = 0; j < 8; ++j)
+//        {
+//            if ((window_img[(i + offset_y) * WINDOW_SIZE + j + WINDOW_PIXELS + offset_x] >= 0) && (window_img[(i + offset_y) * WINDOW_SIZE + j + offset_x] >= 0))
+//            {
+//                sum1 += window_img[(i + offset_y) * WINDOW_SIZE + j + WINDOW_PIXELS + offset_x];
+//                sum2 += window_img[(i + offset_y) * WINDOW_SIZE + j + offset_x];
+//                sum1Sq += window_img[(i + offset_y) * WINDOW_SIZE + j + WINDOW_PIXELS + offset_x] * window_img[i * WINDOW_SIZE + j + WINDOW_PIXELS + offset_x];
+//                sum2Sq += window_img[(i + offset_y) * WINDOW_SIZE + j + offset_x] * window_img[i * WINDOW_SIZE + j + offset_x];
+//                sum12 += window_img[(i + offset_y) * WINDOW_SIZE + j + WINDOW_PIXELS + offset_x] * window_img[i * WINDOW_SIZE + j + offset_x];
+//                valid_count++;
+//            }
+//        }
+//    }
+//
+//    float mu1 = sum1 / valid_count;
+//    float mu2 = sum2 / valid_count;
+//    float sigma1Sq = (sum1Sq / valid_count) - (mu1 * mu1);
+//    float sigma2Sq = (sum2Sq / valid_count) - (mu2 * mu2);
+//    float sigma12 = (sum12 / valid_count) - (mu1 * mu2);
+//
+//    // Stabilizing constants
+//    float C1 = 6.5025; // (K1*L)^2, where K1=0.01 and L=255
+//    float C2 = 58.5225; // (K2*L)^2, where K2=0.03 and L=255
+//
+//    float ssim = ((2 * mu1 * mu2 + C1) * (2 * sigma12 + C2)) / ((mu1 * mu1 + mu2 * mu2 + C1) * (sigma1Sq + sigma2Sq + C2));
+//
+//    artifact_map[Row * width + Col] = ssim * img_diff;
+//}
 
 __global__ void horizontalBicubicConvolve( RGBA_t* big_img_data, RGBA_t* img_data, float* kernel, int big_width, int big_height, int width, int height, int scale, int ksize) 
 {
