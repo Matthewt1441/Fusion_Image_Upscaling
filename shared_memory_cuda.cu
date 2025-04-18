@@ -5,6 +5,17 @@
 
 const int CHN_NUM = 3;
 
+__constant__ float d_guas_kernel[49] = { 0.011697253,    0.035533119 ,  0.069209062 ,   0.086431652 ,   0.069209062 ,   0.035533119 ,   0.011697253,
+                                         0.003850653,    0.011697253 ,  0.022783138 ,   0.028452696 ,   0.022783138 ,   0.011697253 ,   0.003850653,
+                                         0.001976992,    0.00600557  ,  0.011697253 ,   0.014608101 ,   0.011697253 ,   0.00600557  ,   0.001976992,
+                                         0.001976992,    0.00600557  ,  0.011697253 ,   0.014608101 ,   0.011697253 ,   0.00600557  ,   0.001976992,
+                                         0.003850653,    0.011697253 ,  0.022783138 ,   0.028452696 ,   0.022783138 ,   0.011697253 ,   0.003850653,
+                                         0.011697253,    0.035533119 ,  0.069209062 ,   0.086431652 ,   0.069209062 ,   0.035533119 ,   0.011697253,
+                                         0.001583051,    0.004808885 ,  0.009366428 ,   0.011697253 ,   0.009366428 ,   0.004808885 ,   0.001583051 };
+
+__constant__ float d_guas_kernel_seperable[7] = { 0.0366328470,   0.111280762,    0.216745317,    0.270682156,    0.216745317,    0.111280762,    0.0366328470 };
+
+
 //__constant__ float d_bic_kernel[64];
 
 ////Nearest Neighbors but the shared memory uses one thread to output a pixel.
@@ -679,5 +690,149 @@ __global__ void verticalBicubicConvolve( RGBA_t* big_img_data, unsigned char* gr
         
         grey_big_img_data[output_y * big_width + output_x] = 0.21f * rgba_val.r + 0.71f * rgba_val.g + 0.07f * rgba_val.b;
 
+    }
+}
+
+//__global__ void GuassianBlur_Threshold_Map_Shared_Memory_Kernel(float* blur_map, float* input_map, float* kernel, int width, int height, float threshold, int ksize)
+__global__ void GuassianBlur_Threshold_Map_Constant_Memory_Kernel(float* blur_map, float* input_map, int width, int height, float threshold, int ksize)
+{
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float sum = 0;
+
+    int radius = ksize/2;
+
+    if (Row < height && Col < width)
+    {
+        for (int i = 0; i < ksize; i++) 
+        {
+            for (int j = 0; j < ksize; j++) 
+            {
+                int map_y = Row + i - radius;
+                int map_x = Col + j - radius;
+
+                //If we are within the image
+                if (map_x >= 0 && map_x < width && map_y >= 0 && map_y < height) {
+                    sum += input_map[map_y * width + map_x] * d_guas_kernel[i * ksize + j];
+                }
+            }
+        }
+
+        blur_map[Row * width + Col] = sum;//(sum > threshold) ? 1.0 : 0.0;
+    }
+}
+
+__global__ void horizontalGuassianBlurConvolve(float* blur_map, float* input_map, int width, int height, int ksize)
+{
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+    int tidx = threadIdx.x;
+    int tidy = threadIdx.y;
+
+    //Shared Memory based on block size and kernel size (always 7 in our case)
+    // Tile Width   = Block_Width + KSize - 1
+    // Tile Height  = Block_Height
+    extern __shared__ float s_tile_h[];
+
+    int tile_width  = blockDim.x + ksize - 1;
+    int tile_height = blockDim.y;
+    int radius = ksize/2;
+
+
+    //Fill Input Tile by striding through the input array
+    int tile_input_idx_x = tidx;
+    int tile_input_idx_y = tidy;
+    while(tile_input_idx_x < tile_width)
+    {
+        int g_input_idx_x = (tile_input_idx_x - radius) + blockIdx.x * blockDim.x;
+
+        if (g_input_idx_x >= 0 && g_input_idx_x < width) 
+        {
+            s_tile_h[tile_input_idx_y * tile_width + tile_input_idx_x] = input_map[Row * width + g_input_idx_x];
+        }
+        else
+        {
+            s_tile_h[tile_input_idx_y * tile_width + tile_input_idx_x] = 0;
+        }
+
+        //Stride by blockDim ammount
+        tile_input_idx_x += blockDim.x;
+    }
+    __syncthreads();
+
+
+    float sum = 0;
+    if (Row < height && Col < width)
+    {
+        //Define Starting points for input tile
+        int tile_y = tidy;
+        int tile_x = tidx + radius;
+
+        //Horizontal Convolve
+        for (int k = -radius; k <= radius; k++) 
+        {
+            sum += s_tile_h[tile_y * tile_width + (tile_x - k)] * d_guas_kernel_seperable[k + radius];
+        }
+
+        //Global Write
+        blur_map[Row * width + Col] = sum;
+    }
+}
+
+__global__ void verticalGuassianBlurConvolve(float* blur_map, float* input_map, int width, int height, float threshold, int ksize)
+{
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+    int tidx = threadIdx.x;
+    int tidy = threadIdx.y;
+
+    //Shared Memory based on block size and kernel size (always 7 in our case)
+    // Tile Width   = Block_Width
+    // Tile Height  = Block_Height + KSize - 1
+    extern __shared__ float s_tile_v[];
+
+    int tile_width  = blockDim.x;
+    int tile_height = blockDim.y + ksize - 1;
+    int radius = ksize/2;
+
+
+    //Fill Input Tile by striding through the input array
+    int tile_input_idx_x = tidx;
+    int tile_input_idx_y = tidy;
+    while(tile_input_idx_y < tile_height)
+    {
+        int g_input_idx_y = (tile_input_idx_y - radius) + blockIdx.y * blockDim.y;
+
+        if (g_input_idx_y >= 0 && g_input_idx_y < height) 
+        {
+            s_tile_v[tile_input_idx_y * tile_width + tile_input_idx_x] = input_map[g_input_idx_y * width + Col];
+        }
+        else
+        {
+            s_tile_v[tile_input_idx_y * tile_width + tile_input_idx_x] = 0;
+        }
+
+        //Stride by blockDim ammount
+        tile_input_idx_y += blockDim.y;
+    }
+    __syncthreads();
+
+
+    float sum = 0;
+    if (Row < height && Col < width)
+    {
+        //Define Starting points for input tile
+        int tile_y = tidy + radius;
+        int tile_x = tidx;
+
+        //Horizontal Convolve
+        for (int k = -radius; k <= radius; k++) 
+        {
+            sum += s_tile_v[(tile_y - k) * tile_width + tile_x] * d_guas_kernel_seperable[k + radius];
+        }
+
+        //Global Write
+        blur_map[Row * width + Col] = (sum > threshold) ? 1.0 : 0.0;//sum;
     }
 }

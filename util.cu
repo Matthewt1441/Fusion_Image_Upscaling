@@ -92,19 +92,19 @@ void Image_Compare(unsigned char* img1, unsigned char* img2, int width, int heig
             char img2_g = img2[idx + 1];
             char img2_b = img2[idx + 2];
 
-            if((img2_r < img1_r - 1) || (img2_r > img1_r + 1))
+            if((img2_r < img1_r - 0) || (img2_r > img1_r + 0))
             {
                 pass = false;
                 goto LOOP_EXIT;
             }
 
-            if((img2_g < img1_g - 1) || (img2_g > img1_g + 1))
+            if((img2_g < img1_g - 0) || (img2_g > img1_g + 0))
             {
                 pass = false;
                 goto LOOP_EXIT;
             }
 
-            if((img2_b < img1_b - 1) || (img2_b > img1_b + 1))
+            if((img2_b < img1_b - 0) || (img2_b > img1_b + 0))
             {
                 pass = false;
                 goto LOOP_EXIT;

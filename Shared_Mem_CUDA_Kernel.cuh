@@ -303,9 +303,19 @@ int sharedMemCudaOptimizedExecution()
 
     //Host Array Pointers, these should always be unsigned char
     unsigned char*      h_img;                              //Original Small Input Image
-    unsigned char*      h_big_img_nn;                       //Upscaled Nearest Neighbor Image
-    unsigned char*      h_big_img_bic;                      //Upscaled Bicubic Image
-    unsigned char*      h_big_img_fused;                    //Upscaled Fused Image
+    unsigned char*  h_big_img_nn;                       //Upscaled Nearest Neighbor Image
+    unsigned char*  h_big_img_nn_grey;                  //Upscaled Greyscale Nearest Neighbor Image
+    unsigned char*  h_big_img_bic;                      //Upscaled Bicubic Image
+    unsigned char*  h_big_img_bic_grey;                 //Upscaled Greyscale Bicubic Image
+    unsigned char*  h_big_img_DIFF_grey;                //Upscaled Greyscale Difference Image
+    unsigned char*  h_big_img_SSIM_grey;                //Upscaled Greyscale SSIM Image
+    unsigned char*  h_big_img_ARTIFACT_grey;            //Upscaled Greyscale ARTIFACT Image
+    unsigned char*  h_big_img_BLURRED_ARTIFACT_grey;    //Upscaled Greyscale BLURRED ARTIFACT Image
+    unsigned char*  h_big_img_fused;                    //Upscaled Fused Image
+    float*          h_diff_map;                         //Difference Map
+    float*          h_ssim_map;                         //SSIM Map
+    float*          h_artifact_map;                     //Artifact Map
+    float*          h_blurred_artifact_map;             //Blurred Artifact Map
     //Temporary Images for debug
     unsigned char*      h_temp_output_img1;
     unsigned char*      h_temp_output_img2;
@@ -331,7 +341,7 @@ int sharedMemCudaOptimizedExecution()
     bool firstImg = true;
 
     //Not sure these are needed will keep for now
-    int block_dim = 16; //The x and y axis size for the block is 16 threads. Total 256 threads
+    int block_dim = 8; //The x and y axis size for the block is 16 threads. Total 256 threads
     int window_size = 8;
 
 
@@ -354,7 +364,7 @@ int sharedMemCudaOptimizedExecution()
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
-        int current_img = 1;
+        int current_img = 37;
 
         double processing_time = 0;
         //***** Temp *****//
@@ -362,6 +372,7 @@ int sharedMemCudaOptimizedExecution()
 
         //Read in first image initially to get input width and height.
         sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        //sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
         free(h_img);
 
@@ -370,11 +381,17 @@ int sharedMemCudaOptimizedExecution()
         big_pixel_count = big_width * big_height;
         
         //******** Malloc Host Images ********//
-        h_big_img_nn            = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-        h_big_img_bic           = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-        h_big_img_fused         = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-        h_temp_output_img1   = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
-        h_temp_output_img2   = (unsigned char*)malloc(sizeof(unsigned char) * big_width * big_height * 3);
+        h_big_img_nn                    = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_big_img_nn_grey               = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_bic                   = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_big_img_bic_grey              = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_ARTIFACT_grey         = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_BLURRED_ARTIFACT_grey = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count);
+        h_big_img_fused                 = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_artifact_map                  = (float*)malloc(sizeof(float) * big_pixel_count);
+        h_blurred_artifact_map          = (float*)malloc(sizeof(float) * big_pixel_count);
+        h_temp_output_img1   = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
+        h_temp_output_img2   = (unsigned char*)malloc(sizeof(unsigned char) * big_pixel_count * 3);
         //******** Malloc Host Images ********//
 
         //******** Malloc Device Images ********//
@@ -417,7 +434,7 @@ int sharedMemCudaOptimizedExecution()
 
 
         //**************** Setup Kernel ****************//
-        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        //sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
 
         dim3 Grid(((big_width - 1) / block_dim) + 1, ((big_height - 1) / block_dim) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
 
@@ -465,13 +482,60 @@ int sharedMemCudaOptimizedExecution()
             h_bic_kernel[i] /= sum;
         }
         cudaMemcpy(d_bic_kernel, h_bic_kernel, BIC_Ksize *sizeof(float), cudaMemcpyHostToDevice);
-       //**************** New Bicubic Stuff ****************//
+        //**************** New Bicubic Stuff ****************//
 
+        //**************** New Guassian Blur ****************//
+        int GUAS_Ksize = 7;
+        float GUAS_Sigma = 1.5;
+
+        int kernel_center = GUAS_Ksize / 2;
+        
+        //sum = 0;
+
+        ////Define Host & Device  Side Guassian Kernel
+        //float *h_guas_kernel = (float*)malloc(sizeof(float) * GUAS_Ksize * GUAS_Ksize);
+        ////float *d_guas_kernel;
+        //if (cudaMalloc((void**)&d_guas_kernel, GUAS_Ksize * sizeof(float)) != cudaSuccess)
+        //    fprintf(stderr, "GUAS Kernel Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //for (int x = 0; x < GUAS_Ksize; x++)
+        //{
+        //    double exponent = -((x - kernel_center) * (x - kernel_center)) / (2 * GUAS_Sigma * GUAS_Sigma);
+        //    h_guas_kernel[x] = exp(exponent) / sqrt((2 * M_PI * GUAS_Sigma));
+        //    sum += h_guas_kernel[x];
+        //}
+        ////Normalize
+        //for (int i = 0; i < GUAS_Ksize; i++)
+        //        h_guas_kernel[i] /= sum;
+
+        ////Define Host & Device  Side Guassian Kernel
+        //float *h_guas_kernel = (float*)malloc(sizeof(float) * GUAS_Ksize * GUAS_Ksize);
+        ////float *d_guas_kernel;
+        //if (cudaMalloc((void**)&d_guas_kernel, GUAS_Ksize * GUAS_Ksize * sizeof(float)) != cudaSuccess)
+        //    fprintf(stderr, "GUAS Kernel Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        //for (int y = 0; y < GUAS_Ksize; y++)
+        //{
+        //    for (int x = 0; x < GUAS_Ksize; x++)
+        //    {
+        //        double exponent = -((x - kernel_center) * (x - kernel_center) - (y - kernel_center) * (y - kernel_center)) / (2 * GUAS_Sigma * GUAS_Sigma);
+        //        h_guas_kernel[y * GUAS_Ksize + x] = exp(exponent) / (2 * M_PI * GUAS_Sigma * GUAS_Sigma);
+        //        sum += h_guas_kernel[y * GUAS_Ksize + x];
+        //    }
+        //}
+        ////Normalize
+        //for (int i = 0; i < GUAS_Ksize; i++)
+        //    for (int j = 0; j < GUAS_Ksize; j++)
+        //        h_guas_kernel[i * GUAS_Ksize + j] /= sum;
+
+
+        //cudaMemcpyToSymbol(d_guas_kernel, h_guas_kernel, GUAS_Ksize * GUAS_Ksize *sizeof(float));
+        //*************** New Guassian Blur *****************//
 
 
 
         //**************** Run & Time Kernels ****************//
-        cudaEventRecord(astartEvent, 0);
+        //cudaEventRecord(astartEvent, 0);
 
         //Load Input Image
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
@@ -493,10 +557,30 @@ int sharedMemCudaOptimizedExecution()
         //Upscale image and convert to greyscale using Nearest Neighbor method
         //nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel <<< Grid, Block, sizeof(RGBA_t) * block_dim * block_dim / scale >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
         nearestNeighbors_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_nn, d_big_img_nn_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        
         //Artifact_Shared_Memory_Kernel << < Grid_Arti, Block_Arti, sizeof(float) * 8 * 8 >> > (d_big_artifact_map, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
-
         Artifact_Grey_Kernel <<< Grid, Block >>>                (d_big_artifact_map         , d_big_img_nn_grey             , d_big_img_bic_grey        , big_width, big_height);
-        GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
+        
+        dim3 h_Guas_Block(32, 16);
+        dim3 h_Guas_Grid(((big_width - 1) / h_Guas_Block.x) + 1, ((big_height - 1) / h_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+        
+        dim3 v_Guas_Block(16, 32);
+        dim3 v_Guas_Grid(((big_width - 1) / v_Guas_Block.x) + 1, ((big_height - 1) / v_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
+
+
+        cudaEventRecord(astartEvent, 0);
+        //GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
+        //GuassianBlur_Threshold_Map_Shared_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, d_guas_kernel, big_width, big_height, 0.05, GUAS_Ksize);
+        //GuassianBlur_Threshold_Map_Constant_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
+        
+        horizontalGuassianBlurConvolve  <<< h_Guas_Grid, h_Guas_Block, sizeof(float) * (h_Guas_Block.x + GUAS_Ksize - 1) * h_Guas_Block.y >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, GUAS_Ksize);
+        //cudaEventRecord(astartEvent, 0);
+        //cudaEventRecord(astopEvent, 0);
+        verticalGuassianBlurConvolve    <<< v_Guas_Grid, v_Guas_Block, sizeof(float) * (v_Guas_Block.y + GUAS_Ksize - 1) * v_Guas_Block.x >>>(d_big_blurred_artifact_map, d_big_blurred_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
+        //GuassianBlurConvolve<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
+        cudaEventRecord(astopEvent, 0);
+        
+        //Fusion
         Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
 
         //Convert Upscaled image back to RGB
@@ -505,44 +589,58 @@ int sharedMemCudaOptimizedExecution()
         //Send Device Images to Host
         cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
-        cudaEventRecord(astopEvent, 0);
+        //cudaEventRecord(astopEvent, 0);
         cudaEventSynchronize(astopEvent);
         cudaEventElapsedTime(&aelapsedTime, astartEvent, astopEvent);
         printf("Total compute time (ms) %f\n", aelapsedTime);
         //**************** Run & Time Kernels ****************//
 
+
         //Convert Intermidiate Images to RGB and send them to the host
         rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img1, d_big_img_nn, big_width * big_height);
-        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img2, d_big_img_bic, big_width * big_height);
+        cudaMemcpy(h_big_img_nn, d_temp_output_img1, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+
+        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_temp_output_img1, d_big_img_bic, big_width * big_height);
+        cudaMemcpy(h_big_img_bic, d_temp_output_img1, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
         //Send Device Images to Host
-        cudaMemcpy(h_big_img_nn, d_temp_output_img1, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_big_img_bic, d_temp_output_img2, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
+        
+        cudaMemcpy(h_big_img_nn_grey        , d_big_img_nn_grey         , sizeof(unsigned char) * big_width * big_height    , cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_big_img_bic_grey       , d_big_img_bic_grey        , sizeof(unsigned char) * big_width * big_height    , cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_artifact_map           , d_big_artifact_map        , sizeof(float) * big_width * big_height    , cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_blurred_artifact_map   , d_big_blurred_artifact_map, sizeof(float) * big_width * big_height    , cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
 
         //Convert Maps to Greyscale
-        //Map2Greyscale(hr_img_diff_grey, hr_diff_map, hr_width, hr_height, 255);           //Diff values are already between 0-255
-        //Map2Greyscale(hr_img_ssim_grey, hr_ssim_map, hr_width, hr_height, 255);         //SSIM values are between 0-1 so scale up to 255
-        //Map2Greyscale(hr_img_artifact_grey, hr_artifact_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
-        //Map2Greyscale(hr_img_artifact_blurred_grey, hr_artifact_blurred_map, hr_width, hr_height, 255);   //Artifact values should be between 0-255;
-
-
+        Map2Greyscale(h_big_img_ARTIFACT_grey           , h_artifact_map        , big_width, big_height, 255);   //Artifact values should be between 0-255;
+        Map2Greyscale(h_big_img_BLURRED_ARTIFACT_grey   , h_blurred_artifact_map, big_width, big_height, 255);   //Artifact values should be between 0-255;
+      
         //Save Images
-        writePPM("./Shared_Memory_Output/NN.ppm", (char*)h_big_img_nn, big_width, big_height);
-        writePPM("./Shared_Memory_Output/BIC.ppm", (char*)h_big_img_bic, big_width, big_height);
-        writePPM("./Shared_Memory_Output/FUSED.ppm", (char*)h_big_img_fused, big_width, big_height);
+        writePPM    ("./Shared_Memory_Output/NN.ppm"                   , (char*)h_big_img_nn                       , big_width, big_height);
+        writePPMGrey("./Shared_Memory_Output/NN_Grey.ppm"              , (char*)h_big_img_nn_grey                  , big_width, big_height);
+        writePPM    ("./Shared_Memory_Output/BIC.ppm"                  , (char*)h_big_img_bic                      , big_width, big_height);
+        writePPMGrey("./Shared_Memory_Output/BIC_Grey.ppm"             , (char*)h_big_img_bic_grey                 , big_width, big_height);
+        writePPMGrey("./Shared_Memory_Output/ARTIFACT_Grey.ppm"        , (char*)h_big_img_ARTIFACT_grey            , big_width, big_height);
+        writePPMGrey("./Shared_Memory_Output/BLURRED_ARTIFACT_Grey.ppm", (char*)h_big_img_BLURRED_ARTIFACT_grey    , big_width, big_height);
+        writePPM    ("./Shared_Memory_Output/FUSED.ppm"                , (char*)h_big_img_fused                    , big_width, big_height);
 
 
         //Compare with Serial Image
-        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/NN.ppm", &width, &height);
-        h_temp_output_img2 = (unsigned char*)readPPM("./Serial_Output/BIC.ppm", &width, &height);
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/NN.ppm", &big_width, &big_height);
         Image_Compare(h_temp_output_img1, h_big_img_nn, big_width, big_height);
-        Image_Compare(h_temp_output_img2, h_big_img_bic, big_width, big_height);
-        free(h_temp_output_img1);
-        free(h_temp_output_img2);
+        
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/BIC.ppm", &big_width, &big_height);
+        Image_Compare(h_temp_output_img1, h_big_img_bic, big_width, big_height);
 
-        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/FUSED.ppm", &width, &height);
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/ARTIFACT_Grey.ppm", &big_width, &big_height);
+        Grey_Image_Compare(h_temp_output_img1, h_big_img_ARTIFACT_grey, big_width, big_height);
+
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/BLURRED_ARTIFACT_Grey.ppm", &big_width, &big_height);
+        Grey_Image_Compare(h_temp_output_img1, h_big_img_BLURRED_ARTIFACT_grey, big_width, big_height);
+
+        h_temp_output_img1 = (unsigned char*)readPPM("./Serial_Output/FUSED.ppm", &big_width, &big_height);
         Image_Compare(h_temp_output_img1, h_big_img_fused, big_width, big_height);
+        
         free(h_temp_output_img1);
 
         //Free Host Memory

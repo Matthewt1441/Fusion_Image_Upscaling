@@ -272,7 +272,10 @@ int serialExecution()
     int big_pixel_count;
 
     //Host Array Pointers, these should always be unsigned char
-    unsigned char*  h_img;                              //Original Small Input Image
+
+
+    //Kernel Parameters
+    int scale = 3;    unsigned char*  h_img;                              //Original Small Input Image
     unsigned char*  h_big_img_nn;                       //Upscaled Nearest Neighbor Image
     unsigned char*  h_big_img_nn_grey;                  //Upscaled Greyscale Nearest Neighbor Image
     unsigned char*  h_big_img_bic;                      //Upscaled Bicubic Image
@@ -286,9 +289,6 @@ int serialExecution()
     float*          h_ssim_map;                         //SSIM Map
     float*          h_artifact_map;                     //Artifact Map
     float*          h_blurred_artifact_map;             //Blurred Artifact Map
-
-    //Kernel Parameters
-    int scale = 3;
     bool RUNNING = true;
     bool firstImg = true;
 
@@ -304,11 +304,12 @@ int serialExecution()
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
-        int current_img = 1;
+        int current_img = 37;
 
         //***** Temp *****//
 
         //Read in first image initially to get input width and height.
+        //sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
         sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
         free(h_img);
@@ -337,7 +338,7 @@ int serialExecution()
         double processing_time = 0;
 
         //**************** Run & Time Kernels ****************//
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
 
         //Load Input Image
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
@@ -352,14 +353,20 @@ int serialExecution()
         SSIM_Grey(h_ssim_map, h_big_img_nn_grey, h_big_img_bic_grey, big_width, big_height);
         MapMul(h_artifact_map, h_diff_map, h_ssim_map, big_width, big_height);
 
+        
+        auto start = std::chrono::high_resolution_clock::now();
+
         GuassianBlur_Map(h_blurred_artifact_map, h_artifact_map, big_width, big_height, 3, 1.5);
-
         MapThreshold(h_blurred_artifact_map, 0.05, big_width, big_height);
-
-        Image_Fusion(h_big_img_fused, h_big_img_nn, h_big_img_bic, h_blurred_artifact_map, big_width, big_height);
 
         auto end = std::chrono::high_resolution_clock::now();
         auto dur = end - start;
+
+
+        Image_Fusion(h_big_img_fused, h_big_img_nn, h_big_img_bic, h_blurred_artifact_map, big_width, big_height);
+
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto dur = end - start;
         processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
         printf("Total compute time (ms) %f\n", processing_time);
         //**************** Run & Time Kernels ****************//

@@ -310,12 +310,16 @@ __global__ void bicubicInterpolation_GreyCon_Kernel_RGBA(RGBA_t* big_img_data, u
 
     if(output_y < big_height &&  output_x < big_width)
     {
-        //Calculate starting index for windows
-        float interpolated_x = (float)(output_x / (scale * 1.0));
-        float interpolated_y = (float)(output_y / (scale * 1.0));
+        //Calculate starting index for windows (funky stuff to remove shift)
+        float interpolated_x = ((float)output_x + 0.5f) / (float)scale - 0.5f;
+        float interpolated_y = ((float)output_y + 0.5f) / (float)scale - 0.5f;
 
-        int input_block_start_idx_x = (output_x / scale);
-        int input_block_start_idx_y = (output_y / scale);
+        //Round down to nearest index
+        int input_block_start_idx_x = interpolated_x;
+        int input_block_start_idx_y = interpolated_y;
+
+        //int input_block_start_idx_x = (output_x / scale);
+        //int input_block_start_idx_y = (output_y / scale);
 
         float dx = interpolated_x - input_block_start_idx_x;
         float dy = interpolated_y - input_block_start_idx_y;
