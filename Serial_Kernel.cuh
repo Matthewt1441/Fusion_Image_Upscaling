@@ -337,7 +337,7 @@ int serialExecution()
         double processing_time = 0;
 
         //**************** Run & Time Kernels ****************//
-        auto start = std::chrono::high_resolution_clock::now();
+        //auto start = std::chrono::high_resolution_clock::now();
 
         //Load Input Image
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
@@ -352,14 +352,20 @@ int serialExecution()
         SSIM_Grey(h_ssim_map, h_big_img_nn_grey, h_big_img_bic_grey, big_width, big_height);
         MapMul(h_artifact_map, h_diff_map, h_ssim_map, big_width, big_height);
 
+        
+        auto start = std::chrono::high_resolution_clock::now();
+
         GuassianBlur_Map(h_blurred_artifact_map, h_artifact_map, big_width, big_height, 3, 1.5);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto dur = end - start;
 
         MapThreshold(h_blurred_artifact_map, 0.05, big_width, big_height);
 
         Image_Fusion(h_big_img_fused, h_big_img_nn, h_big_img_bic, h_blurred_artifact_map, big_width, big_height);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto dur = end - start;
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto dur = end - start;
         processing_time = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
         printf("Total compute time (ms) %f\n", processing_time);
         //**************** Run & Time Kernels ****************//

@@ -465,13 +465,42 @@ int sharedMemCudaOptimizedExecution()
             h_bic_kernel[i] /= sum;
         }
         cudaMemcpy(d_bic_kernel, h_bic_kernel, BIC_Ksize *sizeof(float), cudaMemcpyHostToDevice);
-       //**************** New Bicubic Stuff ****************//
+        //**************** New Bicubic Stuff ****************//
 
+        //**************** New Guassian Blur ****************//
+        int GUAS_Ksize = 7;
+        float GUAS_Sigma = 1.5;
+
+        int kernel_center = GUAS_Ksize / 2;
+        
+        sum = 0;
+
+        //Define Host & Device  Side Guassian Kernel
+        float *h_guas_kernel = (float*)malloc(sizeof(float) * GUAS_Ksize * GUAS_Ksize);
+        float *d_guas_kernel;
+        if (cudaMalloc((void**)&d_guas_kernel, GUAS_Ksize * GUAS_Ksize * sizeof(float)) != cudaSuccess)
+            fprintf(stderr, "GUAS Kernel Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
+
+        for (int y = 0; y < GUAS_Ksize; y++)
+        {
+            for (int x = 0; x < GUAS_Ksize; x++)
+            {
+                double exponent = -((x - kernel_center) * (x - kernel_center) - (y - kernel_center) * (y - kernel_center)) / (2 * GUAS_Sigma * GUAS_Sigma);
+                h_guas_kernel[y * GUAS_Ksize + x] = exp(exponent) / (2 * M_PI * GUAS_Sigma * GUAS_Sigma);
+                sum += h_guas_kernel[y * GUAS_Ksize + x];
+            }
+        }
+        //Normalize
+        for (int i = 0; i < GUAS_Ksize; i++)
+            for (int j = 0; j < GUAS_Ksize; j++)
+                h_guas_kernel[i * GUAS_Ksize + j] /= sum;
+        cudaMemcpy(d_guas_kernel, h_guas_kernel, GUAS_Ksize * GUAS_Ksize *sizeof(float), cudaMemcpyHostToDevice);
+        //*************** New Guassian Blur *****************//
 
 
 
         //**************** Run & Time Kernels ****************//
-        cudaEventRecord(astartEvent, 0);
+        //cudaEventRecord(astartEvent, 0);
 
         //Load Input Image
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
@@ -496,7 +525,14 @@ int sharedMemCudaOptimizedExecution()
         //Artifact_Shared_Memory_Kernel << < Grid_Arti, Block_Arti, sizeof(float) * 8 * 8 >> > (d_big_artifact_map, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
 
         Artifact_Grey_Kernel <<< Grid, Block >>>                (d_big_artifact_map         , d_big_img_nn_grey             , d_big_img_bic_grey        , big_width, big_height);
-        GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
+        
+        cudaEventRecord(astartEvent, 0);
+        //GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
+        GuassianBlur_Threshold_Map_Shared_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, d_guas_kernel, big_width, big_height, 0.05, GUAS_Ksize);
+        
+        cudaEventRecord(astopEvent, 0);
+        
+        
         Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
 
         //Convert Upscaled image back to RGB
@@ -505,7 +541,7 @@ int sharedMemCudaOptimizedExecution()
         //Send Device Images to Host
         cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
-        cudaEventRecord(astopEvent, 0);
+        //cudaEventRecord(astopEvent, 0);
         cudaEventSynchronize(astopEvent);
         cudaEventElapsedTime(&aelapsedTime, astartEvent, astopEvent);
         printf("Total compute time (ms) %f\n", aelapsedTime);

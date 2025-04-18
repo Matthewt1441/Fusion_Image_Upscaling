@@ -681,3 +681,32 @@ __global__ void verticalBicubicConvolve( RGBA_t* big_img_data, unsigned char* gr
 
     }
 }
+
+__global__ void GuassianBlur_Threshold_Map_Shared_Memory_Kernel(float* blur_map, float* input_map, float* kernel, int width, int height, float threshold, int ksize)
+{
+    int Row = blockIdx.y * blockDim.y + threadIdx.y;
+    int Col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    float sum = 0;
+
+    int radius = ksize/2;
+
+    if (Row < height && Col < width)
+    {
+        for (int i = 0; i < ksize; i++) 
+        {
+            for (int j = 0; j < ksize; j++) 
+            {
+                int map_y = Row + i - radius;
+                int map_x = Col + j - radius;
+
+                //If we are within the image
+                if (map_x >= 0 && map_x < width && map_y >= 0 && map_y < height) {
+                    sum += input_map[map_y * width + map_x] * kernel[i * ksize + j];
+                }
+            }
+        }
+
+        blur_map[Row * width + Col] = (sum > threshold) ? 1.0 : 0.0;
+    }
+}

@@ -14,3 +14,5 @@ __global__ void nearestNeighbors_shared_memory_one_thread_per_pixel_Kernel(RGBA_
 
 __global__ void horizontalBicubicConvolve( RGBA_t* big_img_data, RGBA_t* img_data, float* kernel, int big_width, int big_height, int width, int height, int scale, int ksize);
 __global__ void verticalBicubicConvolve( RGBA_t* big_img_data, unsigned char* grey_big_img_data, RGBA_t* img_data, float* kernel,int big_width, int big_height, int width, int height, int scale, int ksize);
+
+__global__ void GuassianBlur_Threshold_Map_Shared_Memory_Kernel(float* blur_map, float* input_map, float* kernel, int width, int height, float threshold, int ksize);
