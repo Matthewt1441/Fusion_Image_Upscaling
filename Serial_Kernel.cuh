@@ -309,8 +309,8 @@ int serialExecution()
         //***** Temp *****//
 
         //Read in first image initially to get input width and height.
-        //sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
-        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
+        //sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
         free(h_img);
 
@@ -357,8 +357,8 @@ int serialExecution()
         auto start = std::chrono::high_resolution_clock::now();
 
         GuassianBlur_Map(h_blurred_artifact_map, h_artifact_map, big_width, big_height, 3, 1.5);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto dur = end - start;
+        //auto end = std::chrono::high_resolution_clock::now();
+        //auto dur = end - start;
 
         MapThreshold(h_blurred_artifact_map, 0.05, big_width, big_height);
 

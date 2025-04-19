@@ -371,8 +371,8 @@ int sharedMemCudaOptimizedExecution()
 
 
         //Read in first image initially to get input width and height.
-        sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
-        //sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
+        //sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
+        sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
         free(h_img);
 
