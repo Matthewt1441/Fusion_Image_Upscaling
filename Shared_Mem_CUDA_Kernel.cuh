@@ -561,10 +561,10 @@ int sharedMemCudaOptimizedExecution()
         //Artifact_Shared_Memory_Kernel << < Grid_Arti, Block_Arti, sizeof(float) * 8 * 8 >> > (d_big_artifact_map, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
         Artifact_Grey_Kernel <<< Grid, Block >>>                (d_big_artifact_map         , d_big_img_nn_grey             , d_big_img_bic_grey        , big_width, big_height);
         
-        dim3 h_Guas_Block(32, 16);
+        dim3 h_Guas_Block(32, 32);
         dim3 h_Guas_Grid(((big_width - 1) / h_Guas_Block.x) + 1, ((big_height - 1) / h_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
         
-        dim3 v_Guas_Block(16, 32);
+        dim3 v_Guas_Block(32, 32);
         dim3 v_Guas_Grid(((big_width - 1) / v_Guas_Block.x) + 1, ((big_height - 1) / v_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
 
 
