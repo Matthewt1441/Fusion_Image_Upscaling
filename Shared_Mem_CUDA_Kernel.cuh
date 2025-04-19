@@ -563,14 +563,13 @@ int sharedMemCudaOptimizedExecution()
         //Artifact_Shared_Memory_Kernel << < Grid_Arti, Block_Arti, sizeof(float) * 8 * 8 >> > (d_big_artifact_map, d_big_img_nn_grey, d_big_img_bic_grey, big_width, big_height);
         Artifact_Grey_Kernel <<< Grid, Block >>>                (d_big_artifact_map         , d_big_img_nn_grey             , d_big_img_bic_grey        , big_width, big_height);
         
+
+        //################### Guassian ###################// 
         dim3 h_Guas_Block(32, 32);
         dim3 h_Guas_Grid(((big_width - 1) / h_Guas_Block.x) + 1, ((big_height - 1) / h_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
-        
         dim3 v_Guas_Block(32, 32);
         dim3 v_Guas_Grid(((big_width - 1) / v_Guas_Block.x) + 1, ((big_height - 1) / v_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
 
-
-        
         //GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
         //GuassianBlur_Threshold_Map_Shared_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, d_guas_kernel, big_width, big_height, 0.05, GUAS_Ksize);
         //GuassianBlur_Threshold_Map_Constant_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
@@ -581,6 +580,7 @@ int sharedMemCudaOptimizedExecution()
         cudaEventRecord(astartEvent2, 0);
         verticalGuassianBlurConvolve    <<< v_Guas_Grid, v_Guas_Block, sizeof(float) * (v_Guas_Block.y + GUAS_Ksize - 1) * v_Guas_Block.x >>>(d_big_blurred_artifact_map, d_big_blurred_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
         cudaEventRecord(astopEvent2, 0);
+        //################### Guassian ###################//
         
         //Fusion
         Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
