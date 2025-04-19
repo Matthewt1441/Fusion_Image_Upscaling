@@ -181,28 +181,6 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
     }
     __syncthreads();
 
-    //if(blockIdx.x == 4 && blockIdx.y == 0)
-    //if(Col == 760 && Row == 0)
-    //{
-    //    
-    //    //if(threadIdx.x == 3 && threadIdx.y == 0)
-    //    {
-    //        printf("Output Idx.x: %d, Idx.y: %d, BlockIdx.x: %d, BlockIdx.y: %d\n", Col, Row, blockIdx.x, blockIdx.y);
-    //        printf("Input Tile\n");
-    //        for(int i = 0; i < tile_height; i++)
-    //        {
-    //            for(int j = 0; j < tile_width; j++)
-    //            {
-    //                printf("[ %d, %d, %d ]", s_tile[i * tile_width + j].r, s_tile[i * tile_width + j].g, s_tile[i * tile_width + j].b);
-    //            }
-    //            printf("\n");
-    //        }
-    //    }
-    //}
-    //__syncthreads();
-
-
-
     if(g_output_y < big_height && g_output_x < big_width)
     {
         //Calculate starting index for windows (funky stuff to remove shift)
@@ -240,26 +218,6 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
                 window_b[window_y + 1][window_x + 1] = (float)rgba_val.b;    //B
             }
         }
-
-        //if(blockIdx.x == 4 && blockIdx.y == 0)
-        //if(Col == 760 && Row == 0)
-        //{
-        //
-        //    //if(threadIdx.x == 3 && threadIdx.y == 0)
-        //    {
-        //        printf("Output Idx.x: %d, Idx.y: %d, dx: %f, dy: %f\n", Col, Row, dx, dy);
-        //        printf("Window\n");
-        //        for(int i = 0; i < 4; i++)
-        //        {
-        //            for(int j = 0; j < 4; j++)
-        //            {
-        //                printf("[ %f, %f, %f ]", window_r[i][j], window_g[i][j], window_b[i][j]);
-        //            }
-        //            printf("\n");
-        //        }
-        //    }
-        //}
-        //__syncthreads();
 
         rgba_val.r = (unsigned char)bicubicInterpolateDevice_Shared(window_r, dy, dx);
         rgba_val.g = (unsigned char)bicubicInterpolateDevice_Shared(window_g, dy, dx);

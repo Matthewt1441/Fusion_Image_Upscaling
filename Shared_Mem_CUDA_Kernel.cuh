@@ -336,7 +336,7 @@ int sharedMemCudaOptimizedExecution()
     unsigned char*      d_temp_output_img2;
 
     //Kernel Parameters
-    int scale = 3;
+    int scale = 2;
     bool RUNNING = true;
     bool firstImg = true;
 
@@ -364,7 +364,7 @@ int sharedMemCudaOptimizedExecution()
         sprintf(fps_str, "FPS:%.*f", 3, 0.0);
 
         int max_image = 200;
-        int current_img = 37;
+        int current_img = 1;
 
         double processing_time = 0;
         //***** Temp *****//
@@ -372,7 +372,8 @@ int sharedMemCudaOptimizedExecution()
 
         //Read in first image initially to get input width and height.
         //sprintf(file_name, "./LM_Frame/image%d.ppm", current_img);
-        sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
+        //sprintf(file_name, "./LAD/LAD_%d.ppm", current_img);
+        sprintf(file_name, "./NV/image%d.ppm", current_img);
         h_img = (unsigned char*)readPPM(file_name, &width, &height);
         free(h_img);
 
@@ -444,22 +445,29 @@ int sharedMemCudaOptimizedExecution()
         dim3 Grid_Arti(((width - 1) / 8) + 1, ((height - 1) / 8) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
         dim3 Block_Arti(8, 8);
 
-        dim3 BiCubic_Block(12, 12);
+        dim3 BiCubic_Block(4*scale, 4*scale);
         dim3 BiCubic_Grid(((big_width - 1) / BiCubic_Block.x) + 1, ((big_height - 1) / BiCubic_Block.y) + 1);
         int BiCubic_Shared_Mem_Size = ((BiCubic_Block.y / scale) + 3) * ((BiCubic_Block.x / scale) + 3);
 
 
-        dim3 GRID_RGB_Convert(ceil((big_width * big_height) / 256.0));
         dim3 BLOCK_RGB_Convert(256);
+        dim3 GRID_RGB_Convert(ceil((big_width * big_height) / (float)BLOCK_RGB_Convert.x));
+       
         //**************** Setup Kernel ****************//
 
         //Variables for timing
-        cudaEvent_t astartEvent1, astopEvent1, astartEvent2, astopEvent2;
-        float aelapsedTime1, aelapsedTime2;
+        cudaEvent_t astartEvent1, astopEvent1, astartEvent2, astopEvent2, astartEvent3, astopEvent3, astartEvent4, astopEvent4, astartEvent5, astopEvent5;
+        float aelapsedTime1, aelapsedTime2, aelapsedTime3, aelapsedTime4, aelapsedTime5;
         cudaEventCreate(&astartEvent1);
         cudaEventCreate(&astopEvent1);
         cudaEventCreate(&astartEvent2);
         cudaEventCreate(&astopEvent2);
+        cudaEventCreate(&astartEvent3);
+        cudaEventCreate(&astopEvent3);
+        cudaEventCreate(&astartEvent4);
+        cudaEventCreate(&astopEvent4);
+        cudaEventCreate(&astartEvent5);
+        cudaEventCreate(&astopEvent5);
         
         //**************** New Bicubic Stuff ****************//
        
@@ -489,52 +497,7 @@ int sharedMemCudaOptimizedExecution()
         //**************** New Guassian Blur ****************//
         int GUAS_Ksize = 7;
         float GUAS_Sigma = 1.5;
-
-        int kernel_center = GUAS_Ksize / 2;
-        
-        //sum = 0;
-
-        ////Define Host & Device  Side Guassian Kernel
-        //float *h_guas_kernel = (float*)malloc(sizeof(float) * GUAS_Ksize * GUAS_Ksize);
-        ////float *d_guas_kernel;
-        //if (cudaMalloc((void**)&d_guas_kernel, GUAS_Ksize * sizeof(float)) != cudaSuccess)
-        //    fprintf(stderr, "GUAS Kernel Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-        //for (int x = 0; x < GUAS_Ksize; x++)
-        //{
-        //    double exponent = -((x - kernel_center) * (x - kernel_center)) / (2 * GUAS_Sigma * GUAS_Sigma);
-        //    h_guas_kernel[x] = exp(exponent) / sqrt((2 * M_PI * GUAS_Sigma));
-        //    sum += h_guas_kernel[x];
-        //}
-        ////Normalize
-        //for (int i = 0; i < GUAS_Ksize; i++)
-        //        h_guas_kernel[i] /= sum;
-
-        ////Define Host & Device  Side Guassian Kernel
-        //float *h_guas_kernel = (float*)malloc(sizeof(float) * GUAS_Ksize * GUAS_Ksize);
-        ////float *d_guas_kernel;
-        //if (cudaMalloc((void**)&d_guas_kernel, GUAS_Ksize * GUAS_Ksize * sizeof(float)) != cudaSuccess)
-        //    fprintf(stderr, "GUAS Kernel Failed to Malloc: %s\n", cudaGetErrorString(cudaStatus));
-
-        //for (int y = 0; y < GUAS_Ksize; y++)
-        //{
-        //    for (int x = 0; x < GUAS_Ksize; x++)
-        //    {
-        //        double exponent = -((x - kernel_center) * (x - kernel_center) - (y - kernel_center) * (y - kernel_center)) / (2 * GUAS_Sigma * GUAS_Sigma);
-        //        h_guas_kernel[y * GUAS_Ksize + x] = exp(exponent) / (2 * M_PI * GUAS_Sigma * GUAS_Sigma);
-        //        sum += h_guas_kernel[y * GUAS_Ksize + x];
-        //    }
-        //}
-        ////Normalize
-        //for (int i = 0; i < GUAS_Ksize; i++)
-        //    for (int j = 0; j < GUAS_Ksize; j++)
-        //        h_guas_kernel[i * GUAS_Ksize + j] /= sum;
-
-
-        //cudaMemcpyToSymbol(d_guas_kernel, h_guas_kernel, GUAS_Ksize * GUAS_Ksize *sizeof(float));
         //*************** New Guassian Blur *****************//
-
-
 
         //**************** Run & Time Kernels ****************//
         //cudaEventRecord(astartEvent, 0);
@@ -547,7 +510,9 @@ int sharedMemCudaOptimizedExecution()
         cudaDeviceSynchronize();
 
         //Convert original image to RGBA image
-        rgbToRGBA_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >> > (d_RGBA_img, d_img, width * height);
+        cudaEventRecord(astartEvent5, 0);
+        rgbToRGBA_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert, sizeof(unsigned char)*BLOCK_RGB_Convert.x * 3 >> > (d_RGBA_img, d_img, width * height);
+        cudaEventRecord(astopEvent5, 0);
 
         //Upscale image and convert to greyscale using Bicubic method
         //horizontalBicubicConvolve<<<Grid, Block>>>(d_big_img_bic, d_RGBA_img, d_bic_kernel, big_width, big_height, width, height, scale, BIC_Ksize );
@@ -583,22 +548,38 @@ int sharedMemCudaOptimizedExecution()
         //################### Guassian ###################//
         
         //Fusion
-        Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
+        cudaEventRecord(astartEvent3, 0);
+        Image_Fusion_Kernel_RGBA <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
+        cudaEventRecord(astopEvent3, 0);
 
         //Convert Upscaled image back to RGB
-        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert >>> (d_big_img_fused, d_big_rgba_img_fused, big_width * big_height);
-
+        cudaEventRecord(astartEvent4, 0);
+        rgbaToRGB_Kernel <<< GRID_RGB_Convert, BLOCK_RGB_Convert, sizeof(RGBA_t)*BLOCK_RGB_Convert.x >>> (d_big_img_fused, d_big_rgba_img_fused, big_width * big_height);
+        cudaEventRecord(astopEvent4, 0);
+        
         //Send Device Images to Host
         cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
         
+        cudaEventSynchronize(astopEvent5);
+        cudaEventElapsedTime(&aelapsedTime5, astartEvent5, astopEvent5);
+        printf("rgbToRGBA Time (ms) %f\n", aelapsedTime5);
+
         cudaEventSynchronize(astopEvent1);
         cudaEventElapsedTime(&aelapsedTime1, astartEvent1, astopEvent1);
         printf("Horizontal Convolve Time (ms) %f\n", aelapsedTime1);
 
         cudaEventSynchronize(astopEvent2);
         cudaEventElapsedTime(&aelapsedTime2, astartEvent2, astopEvent2);
-        printf("Vertical Convolve Time (ms) %f\n", aelapsedTime1);
+        printf("Vertical Convolve Time (ms) %f\n", aelapsedTime2);
+
+        cudaEventSynchronize(astopEvent3);
+        cudaEventElapsedTime(&aelapsedTime3, astartEvent3, astopEvent3);
+        printf("Image Fusion Time (ms) %f\n", aelapsedTime3);
+
+        cudaEventSynchronize(astopEvent4);
+        cudaEventElapsedTime(&aelapsedTime4, astartEvent4, astopEvent4);
+        printf("rgbaToRGB Time (ms) %f\n", aelapsedTime4);
 
         //**************** Run & Time Kernels ****************//
 

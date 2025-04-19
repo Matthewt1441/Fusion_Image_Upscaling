@@ -12,7 +12,7 @@
 
 int main()
 {
-    serialExecution();
+    //serialExecution();
     //return naiveCudaExecution();
     //return Code_Testing();
     //return basicCudaOptimizedExecution();
