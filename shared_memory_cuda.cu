@@ -205,12 +205,21 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
 
     if(g_output_y < big_height && g_output_x < big_width)
     {
-        //Calculate starting index for input tile
-        float interpolated_x = (float)((threadIdx.x / (scale * 1.0)) + 1.0);
-        float interpolated_y = (float)((threadIdx.y / (scale * 1.0)) + 1.0);
+        //Calculate starting index for windows (funky stuff to remove shift)
+        float interpolated_x = (((float)threadIdx.x + 0.5f) / (float)scale - 0.5f);
+        float interpolated_y = (((float)threadIdx.y + 0.5f) / (float)scale - 0.5f);
 
-        int interpolated_idx_x = (threadIdx.x / scale) + 1;
-        int interpolated_idx_y = (threadIdx.y / scale) + 1;
+        //Round down to nearest index
+        int interpolated_idx_x = interpolated_x;
+        int interpolated_idx_y = interpolated_y;
+
+
+        ////Calculate starting index for input tile
+        //float interpolated_x = (float)((threadIdx.x / (scale * 1.0)) + 1.0);
+        //float interpolated_y = (float)((threadIdx.y / (scale * 1.0)) + 1.0);
+
+        //int interpolated_idx_x = (threadIdx.x / scale) + 1;
+        //int interpolated_idx_y = (threadIdx.y / scale) + 1;
 
         float dx = interpolated_x - interpolated_idx_x;
         float dy = interpolated_y - interpolated_idx_y;
@@ -221,8 +230,8 @@ __global__ void bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA(RGBA_t* b
             for(window_x = -1; window_x < 3; window_x++)
             {
                 //Calculate Input Image Tile index
-                tile_input_x = interpolated_idx_x + window_x;
-                tile_input_y = interpolated_idx_y + window_y;
+                tile_input_x = interpolated_idx_x + window_x + 1;
+                tile_input_y = interpolated_idx_y + window_y + 1;
 
                 rgba_val = s_tile[tile_input_y * tile_width + tile_input_x];
 

@@ -550,8 +550,8 @@ int sharedMemCudaOptimizedExecution()
         //Upscale image and convert to greyscale using Bicubic method
         //horizontalBicubicConvolve<<<Grid, Block>>>(d_big_img_bic, d_RGBA_img, d_bic_kernel, big_width, big_height, width, height, scale, BIC_Ksize );
         //verticalBicubicConvolve<<<Grid, Block>>>(d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, d_bic_kernel, big_width, big_height, width, height, scale, BIC_Ksize );
-        bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
-        //bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA<<<BiCubic_Grid, BiCubic_Block, sizeof(RGBA_t) * BiCubic_Shared_Mem_Size>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        //bicubicInterpolation_GreyCon_Kernel_RGBA <<< Grid, Block >>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
+        bicubicInterpolation_Shared_Memory_GreyCon_Kernel_RGBA<<<BiCubic_Grid, BiCubic_Block, sizeof(RGBA_t) * BiCubic_Shared_Mem_Size>>> (d_big_img_bic, d_big_img_bic_grey, d_RGBA_img, big_width, big_height, width, height, scale);
         cudaDeviceSynchronize();
 
         //Upscale image and convert to greyscale using Nearest Neighbor method
