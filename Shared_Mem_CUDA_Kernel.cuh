@@ -454,10 +454,12 @@ int sharedMemCudaOptimizedExecution()
         //**************** Setup Kernel ****************//
 
         //Variables for timing
-        cudaEvent_t astartEvent, astopEvent;
-        float aelapsedTime;
-        cudaEventCreate(&astartEvent);
-        cudaEventCreate(&astopEvent);
+        cudaEvent_t astartEvent1, astopEvent1, astartEvent2, astopEvent2;
+        float aelapsedTime1, aelapsedTime2;
+        cudaEventCreate(&astartEvent1);
+        cudaEventCreate(&astopEvent1);
+        cudaEventCreate(&astartEvent2);
+        cudaEventCreate(&astopEvent2);
         
         //**************** New Bicubic Stuff ****************//
        
@@ -568,17 +570,17 @@ int sharedMemCudaOptimizedExecution()
         dim3 v_Guas_Grid(((big_width - 1) / v_Guas_Block.x) + 1, ((big_height - 1) / v_Guas_Block.y) + 1);     //Calculate the number of blocks needed for the dimension. 1.0 * Forces Double
 
 
-        cudaEventRecord(astartEvent, 0);
+        
         //GuassianBlur_Threshold_Map_Kernel <<< Grid, Block >>>   (d_big_blurred_artifact_map , d_big_artifact_map                                        , big_width, big_height, 3, 1.5, 0.05);
         //GuassianBlur_Threshold_Map_Shared_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, d_guas_kernel, big_width, big_height, 0.05, GUAS_Ksize);
         //GuassianBlur_Threshold_Map_Constant_Memory_Kernel<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
-        
+        cudaEventRecord(astartEvent1, 0);
         horizontalGuassianBlurConvolve  <<< h_Guas_Grid, h_Guas_Block, sizeof(float) * (h_Guas_Block.x + GUAS_Ksize - 1) * h_Guas_Block.y >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, GUAS_Ksize);
-        //cudaEventRecord(astartEvent, 0);
-        //cudaEventRecord(astopEvent, 0);
+        cudaEventRecord(astopEvent1, 0);
+
+        cudaEventRecord(astartEvent2, 0);
         verticalGuassianBlurConvolve    <<< v_Guas_Grid, v_Guas_Block, sizeof(float) * (v_Guas_Block.y + GUAS_Ksize - 1) * v_Guas_Block.x >>>(d_big_blurred_artifact_map, d_big_blurred_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
-        //GuassianBlurConvolve<<< Grid, Block >>>(d_big_blurred_artifact_map, d_big_artifact_map, big_width, big_height, 0.05, GUAS_Ksize);
-        cudaEventRecord(astopEvent, 0);
+        cudaEventRecord(astopEvent2, 0);
         
         //Fusion
         Image_Fusion_Kernel_RGBA <<< Grid, Block >>>            (d_big_rgba_img_fused       , d_big_img_nn, d_big_img_bic   , d_big_blurred_artifact_map, big_width, big_height);
@@ -589,10 +591,15 @@ int sharedMemCudaOptimizedExecution()
         //Send Device Images to Host
         cudaMemcpy(h_big_img_fused, d_big_img_fused, sizeof(unsigned char) * big_width * big_height * 3, cudaMemcpyDeviceToHost);
 
-        //cudaEventRecord(astopEvent, 0);
-        cudaEventSynchronize(astopEvent);
-        cudaEventElapsedTime(&aelapsedTime, astartEvent, astopEvent);
-        printf("Total compute time (ms) %f\n", aelapsedTime);
+        
+        cudaEventSynchronize(astopEvent1);
+        cudaEventElapsedTime(&aelapsedTime1, astartEvent1, astopEvent1);
+        printf("Horizontal Convolve Time (ms) %f\n", aelapsedTime1);
+
+        cudaEventSynchronize(astopEvent2);
+        cudaEventElapsedTime(&aelapsedTime2, astartEvent2, astopEvent2);
+        printf("Vertical Convolve Time (ms) %f\n", aelapsedTime1);
+
         //**************** Run & Time Kernels ****************//
 
 
