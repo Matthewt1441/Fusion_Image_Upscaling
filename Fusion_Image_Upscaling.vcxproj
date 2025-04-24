@@ -80,11 +80,9 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="basic_optimization_cuda.cu" />
     <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="navie_cuda.cu" />
-    <CudaCompile Include="ppm_image.cu" />
-    <CudaCompile Include="serial_code.cu" />
+    <CudaCompile Include="util.cu" />
+    <CudaCompile Include="kernel_func.cu" />
   </ItemGroup>
   <ItemGroup>
     <None Include="example.ppm" />
@@ -93,15 +91,6 @@
     <None Include="SDL2_ttf.dll" />
     <None Include="text.ppm" />
     <None Include="Tuna_2.ppm" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Basic_CUDA_Optimize_Kernel.cuh" />
-    <ClInclude Include="basic_optimization_cuda.cuh" />
-    <ClInclude Include="naive_cuda.cuh" />
-    <ClInclude Include="Naive_CUDA_Kernel.cuh" />
-    <ClInclude Include="ppm_image.cuh" />
-    <ClInclude Include="serial_code.cuh" />
-    <ClInclude Include="Serial_Kernel.cuh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
